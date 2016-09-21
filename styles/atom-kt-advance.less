@@ -4,5 +4,56 @@
 // for a full listing of what's available.
 @import "ui-variables";
 
-.atom-kt-advance {
+@background-color-error: #dd1133;
+@background-color-warning: #f2be55;
+@background-color-level: #999999;
+
+.atom-kt-advance {}
+
+.linter-highlight,
+atom-text-editor::shadow .linter-highlight {
+    &.violation {
+        &:not(.line-number) {
+            background-color: @background-color-error;
+            color: white;
+        }
+
+        .linter-gutter {
+            color: @background-color-error;
+        }
+
+        .region {
+            border-bottom: 1px dashed @background-color-error;
+        }
+    }
+
+    &.level {
+        &:not(.line-number) {
+            background-color: @background-color-level;
+            color: white;
+        }
+
+        .linter-gutter {
+            color: @background-color-level;
+        }
+
+        .region {
+            border-bottom: 1px dashed @background-color-level;
+        }
+    }
+
+    &.open {
+        &:not(.line-number) {
+            background-color: @background-color-warning;
+            color: white;
+        }
+
+        .linter-gutter {
+            color: @background-color-warning;
+        }
+
+        .region {
+            border-bottom: 1px dashed @background-color-warning;
+        }
+    }
 }

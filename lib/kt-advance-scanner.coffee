@@ -49,14 +49,16 @@ class KtAdvanceScanner
 
 
 
-            state = if issue.state == 'VIOLATION' then 'error' else if issue.state == 'OPEN' then 'warning' else 'info'
-            message = '<b>' + issue.level + '</b><br> ' + issue.description
+            # state = if issue.state == 'VIOLATION' then 'error' else if issue.state == 'OPEN' then 'warning' else 'info'
+            message = ''
+            message += '<b class="badge badge-flexible linter-highlight level">' +issue.level + '</b> '
+            message += '<b class="badge badge-flexible linter-highlight ' + issue.state.toLowerCase() + '">' +  issue.predicateType + '</b> '
 
-            message += ('<br> state:' +issue.state)
-            message += ('<br><b>' + issue.predicateType + '</b>')
+            message += issue.shortDescription
+
 
             if (issue.references.length > 0)
-                message +=('<br> assumptions:' + issue.references.length)
+                message +=('<br>assumptions:' + issue.references.length)
                 for assumption in issue.references
                     href=assumption.file
 
@@ -69,7 +71,7 @@ class KtAdvanceScanner
                     message +=(' col:' + assumption.textRange[0][1])
 
             msg = {
-                type: state
+                type: issue.state
                 filePath: filePath
                 range: issue.textRange
                 html: message
