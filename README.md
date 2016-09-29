@@ -12,6 +12,7 @@
 ![Image](https://raw.githubusercontent.com/compartia/atom-kt-advance/master/screenshots/Screen%20Shot%202016-09-29%20at%2010.35.31.png?token=AHUl_XfcnsC0ambxNQiD_EugHV02nKz-ks5X9gdqwA%3D%3D)
 
 Right after it is activated, the plugin spawns a java process to scan the C project for the `ch_analysis` dir. After the scan in complete, ensure that `kt_analysis_export/kt.json` is created.
+
 7. Open a random C file and press `command-S` to save it (linter is triggered every time a C file is saved)
 
 ![Image](https://raw.githubusercontent.com/compartia/atom-kt-advance/master/screenshots/Screen%20Shot%202016-09-29%20at%2010.44.02.png?token=AHUl_RO9hQH6CP2aLpinGhKo8v9mLNzaks5X9ghQwA%3D%3D)
