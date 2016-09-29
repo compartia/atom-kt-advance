@@ -1,4 +1,6 @@
 {Emitter, File} = require 'atom'
+{BufferedProcess} = require 'atom'
+
 path = require 'path'
 
 class KtAdvanceScanner
@@ -12,16 +14,9 @@ class KtAdvanceScanner
     rootDir: null
     path: null
 
-    onDidUpdateMessages: (callback) ->
-        console.log "onDidUpdateMessages"
-        console.log callback
-
-
     constructor: (fileSystem, rootDir) ->
         @fs = fileSystem
         @rootDir = rootDir
-        @emitter = new Emitter
-        @emitter.on 'did-update-messages', @onDidUpdateMessages
 
     locateJar: ->
         file = atom.packages.resolvePackagePath ('atom-kt-advance')
@@ -30,21 +25,27 @@ class KtAdvanceScanner
 
         return file
 
+    mayBeExecJar: ->
+        fileObj = new File(
+            path.join(@rootDir, 'kt_analysis_export', 'kt.json'))
+
+        if not fileObj.existsSync()
+            @execJar()
 
     execJar: ->
-        exec = require('child_process').exec
-
         jarPath = @locateJar()
-        @_log 'jar location', jarPath
-
         userDir = @rootDir
-        child = exec 'java -jar ' + jarPath + ' ' + userDir , (error, stdout, stderr) ->
-            console.log('Output -> ' + stdout)
-            if error?
-                console.log('Error -> '+error)
-            return
 
-        return
+        command = 'java'
+        args = ['-jar', jarPath, userDir]
+
+        stdout = (output) -> console.log(output)
+        exit = (code) -> console.log('exited with code ' + code)
+        process = new BufferedProcess({command, args, stdout, exit})
+
+
+    _bage:(clazz, body) ->
+        '<span class="badge badge-flexible linter-highlight ' + clazz + '">' + body + '</span>'
 
     lint: (textEditor) =>
         messages = []
@@ -68,39 +69,46 @@ class KtAdvanceScanner
 
             issues = data.files[filePath]
 
-            for issue in issues
+            if issues?
+                for issue in issues
+                    message = ''
+                    message += @_bage('level', issue.level) + ' '
+                    message += @_bage(issue.state.toLowerCase(), issue.predicateType) + ' '
+                    message += issue.shortDescription
 
-                # state = if issue.state == 'VIOLATION' then 'error' else if issue.state == 'OPEN' then 'warning' else 'info'
-                message = ''
-                message += '<b class="badge badge-flexible linter-highlight level">' +issue.level + '</b> '
-                message += '<b class="badge badge-flexible linter-highlight ' + issue.state.toLowerCase() + '">' + issue.predicateType + '</b> '
+                    if (issue.references.length > 0)
+                        message +=('<br>assumptions:' + issue.references.length)
+                        for assumption in issue.references
+                            href=assumption.file
 
-                message += issue.shortDescription
+                            message +='<br><a data-path="'
+                            message += href
+                            message += '">'
+                            message += assumption.message
+                            message += '</a>'
+                            message +=(' line:' + assumption.textRange[0][0])
+                            message +=(' col:' + assumption.textRange[0][1])
 
-                if (issue.references.length > 0)
-                    message +=('<br>assumptions:' + issue.references.length)
-                    for assumption in issue.references
-                        href=assumption.file
+                    msg = {
+                        type: issue.state
+                        filePath: filePath
+                        range: issue.textRange
+                        html: message
+                    }
 
-                        message +='<br><a data-path="'
-                        message += href
-                        message += '">'
-                        message += assumption.message
-                        message += '</a>'
-                        message +=(' line:' + assumption.textRange[0][0])
-                        message +=(' col:' + assumption.textRange[0][1])
+                    # marker = textEditor.markBufferRange(issue.textRange, {})
+                    # options={
+                    #     class:'kt-issue-decor'
+                    #     type:'line'
+                    # }
+                    # textEditor.decorateMarker(marker, options)
 
-                msg = {
-                    type: issue.state
-                    filePath: filePath
-                    range: issue.textRange
-                    html: message
-                }
-
-                if(issue.state != 'DISCHARGED')
-                    messages.push(msg)
+                    if(issue.state != 'DISCHARGED')
+                        messages.push(msg)
 
 
+        for marker in textEditor.getMarkers()
+            console.log marker
         return messages
 
 

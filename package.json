@@ -8,9 +8,6 @@
         "linter",
         "c"
     ],
-    "activationCommands": {
-        "atom-workspace": "atom-kt-advance:toggle"
-    },
 
     "repository": "https://github.com/compartia/atom-kt-advance",
     "license": "MIT",

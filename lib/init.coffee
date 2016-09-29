@@ -39,6 +39,12 @@ module.exports =
                     @verboseLogging = (newValue == true)
         )
 
+        fs = require 'fs'
+        rootDir = @getProjectRootDir(fs)
+        @scanner = new KtAdvanceScanner(fs, rootDir)
+        @scanner.mayBeExecJar()
+
+
     _log: (msgs...) ->
         if (msgs.length > 0)
             prefix = 'kt-advance: '
@@ -65,6 +71,4 @@ module.exports =
                 return textEditor.getPath().substr(0, realpath.length) == realpath
 
     provideLinter: ->
-        fs = require 'fs'
-        rootDir = @getProjectRootDir(fs)
-        return new KtAdvanceScanner(fs, rootDir)
+        return @scanner
