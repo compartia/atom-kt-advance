@@ -39,11 +39,6 @@ module.exports =
                     @verboseLogging = (newValue == true)
         )
 
-        fs = require 'fs'
-        rootDir = @getProjectRootDir(fs)
-        @scanner = new KtAdvanceScanner(fs, rootDir)
-        @scanner.mayBeExecJar()
-
 
     _log: (msgs...) ->
         if (msgs.length > 0)
@@ -58,8 +53,10 @@ module.exports =
     getProjectRootDir:(fs) ->
         textEditor = atom.workspace.getActiveTextEditor()
         if !textEditor || !textEditor.getPath()
+            @_log 'no active editor'
             # default to building the first one if no editor is active
             if not atom.project.getPaths().length
+                @_log 'atom.project.getPaths().length=', atom.project.getPaths().length
                 return false
             return atom.project.getPaths()[0]
 
@@ -71,4 +68,8 @@ module.exports =
                 return textEditor.getPath().substr(0, realpath.length) == realpath
 
     provideLinter: ->
+        fs = require 'fs'
+        rootDir = @getProjectRootDir(fs)
+        @scanner = new KtAdvanceScanner(fs, rootDir)
+        @scanner.mayBeExecJar()
         return @scanner

@@ -1,3 +1,5 @@
+KT_JSON_DIR='kt_analysis_export'
+
 {Emitter, File} = require 'atom'
 {BufferedProcess} = require 'atom'
 
@@ -11,12 +13,10 @@ class KtAdvanceScanner
     lintOnFly: false # Only lint on save
 
     fs : null
-    rootDir: null
     path: null
 
-    constructor: (fileSystem, rootDir) ->
+    constructor: (fileSystem) ->
         @fs = fileSystem
-        @rootDir = rootDir
 
     locateJar: ->
         file = atom.packages.resolvePackagePath ('atom-kt-advance')
@@ -25,16 +25,15 @@ class KtAdvanceScanner
 
         return file
 
+
     mayBeExecJar: (jsonFile) ->
-        if not jsonFile?
-            jsonFile = new File(path.join(@rootDir, 'kt_analysis_export', 'kt.json'))
+        @_log 'mayBeExecJar'
+        #if not jsonFile.existsSync()
+        #    @execJar()
 
-        if not jsonFile.existsSync()
-            @execJar()
-
-    execJar: ->
+    execJar:(jsonPath) ->
         jarPath = @locateJar()
-        userDir = @rootDir
+        userDir = @findRoot(jsonPath)
 
         command = 'java'
         args = ['-jar', jarPath, userDir]
@@ -48,30 +47,36 @@ class KtAdvanceScanner
         exit = (code) -> console.log('exited with code ' + code)
         process = new BufferedProcess({command, args, stdout, exit})
 
-
-    _bage:(clazz, body) ->
-        '<span class="badge badge-flexible linter-highlight ' + clazz + '">' + body + '</span>'
+    findRoot:(filePath)->
+        for root in atom.project.getPaths()
+            relative = path.relative(root, filePath)
+            joined = root + path.sep + relative
+            if joined == filePath
+                return root
+        return false
 
 
     getJsonPath:(textEditor) ->
         filePath = textEditor.getPath()
-        relative = path.relative(@rootDir, filePath)
-        @_log 'relative path:', relative
-        file = path.join @rootDir, 'kt_analysis_export', (relative + '.json')
-        @_log 'json path:', file
+        rootDir = @findRoot(filePath)
+        # @_log 'rootDir:', rootDir
+        relative = path.relative(rootDir, filePath)
+        # @_log 'relative path:', relative
+        file = path.join rootDir, KT_JSON_DIR, (relative + '.json')
+        # @_log 'json path:', file
         return file
+
+
 
     lint: (textEditor) =>
 
-        @_log "lint in rootDir=", @rootDir
+        @_log "lint in rootDir=", rootDir = @findRoot(textEditor.getPath())
         jsonPath = @getJsonPath(textEditor)
         messages = []
 
         jsonFile = new File(jsonPath)
-        @mayBeExecJar(jsonFile)
-
         if not jsonFile.existsSync()
-            @execJar()
+            @execJar(jsonPath)
 
         else
             @_log("reading=", jsonPath)
@@ -99,12 +104,8 @@ class KtAdvanceScanner
                     # }
                     # textEditor.decorateMarker(marker, options)
 
-                    #if(issue.state != 'DISCHARGED')
                     messages.push(msg)
 
-
-        for marker in textEditor.getMarkers()
-            console.log marker
         return messages
 
     collapseIssues:(issues) ->
@@ -116,14 +117,12 @@ class KtAdvanceScanner
             i++
             if i<issues.length
                 txt += '<hr class="issue-split">'
-            #maximum state
-            # if issue.state=='VIOLATION'
-            #     state='VIOLATION'
 
         return {
             message:txt
             state:state
-            textRange:issues[0].textRange #they all have same text range!
+            #they all have same text range, so just take 1st
+            textRange:issues[0].textRange
         }
 
 
@@ -162,6 +161,9 @@ class KtAdvanceScanner
             attrAdd = ''
 
         '<' + tag + attrAdd + '>' + str + '</' + tag + '>'
+
+    _bage:(clazz, body) ->
+        '<span class="badge badge-flexible linter-highlight ' + clazz + '">' + body + '</span>'
 
     _log: (msgs...) ->
         if (msgs.length > 0)
