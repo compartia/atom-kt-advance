@@ -21,15 +21,15 @@ class KtAdvanceScanner
     locateJar: ->
         file = atom.packages.resolvePackagePath ('atom-kt-advance')
         if file?
-            file = path.join file, 'lib', 'json-kt-advance-5.5.3-jar-with-dependencies.jar'
+            file = path.join file, 'lib', 'json-kt-advance-5.5.4-jar-with-dependencies.jar'
 
         return file
 
-    mayBeExecJar: ->
-        fileObj = new File(
-            path.join(@rootDir, 'kt_analysis_export', 'kt.json'))
+    mayBeExecJar: (jsonFile) ->
+        if not jsonFile?
+            jsonFile = new File(path.join(@rootDir, 'kt_analysis_export', 'kt.json'))
 
-        if not fileObj.existsSync()
+        if not jsonFile.existsSync()
             @execJar()
 
     execJar: ->
@@ -39,7 +39,12 @@ class KtAdvanceScanner
         command = 'java'
         args = ['-jar', jarPath, userDir]
 
-        stdout = (output) -> console.log(output)
+        stdout = (output) ->
+            if output.startsWith('WARN')
+                console.warn(output)
+            else
+                console.log(output)
+
         exit = (code) -> console.log('exited with code ' + code)
         process = new BufferedProcess({command, args, stdout, exit})
 
@@ -47,53 +52,44 @@ class KtAdvanceScanner
     _bage:(clazz, body) ->
         '<span class="badge badge-flexible linter-highlight ' + clazz + '">' + body + '</span>'
 
+
+    getJsonPath:(textEditor) ->
+        filePath = textEditor.getPath()
+        relative = path.relative(@rootDir, filePath)
+        @_log 'relative path:', relative
+        file = path.join @rootDir, 'kt_analysis_export', (relative + '.json')
+        @_log 'json path:', file
+        return file
+
     lint: (textEditor) =>
+
+        @_log "lint in rootDir=", @rootDir
+        jsonPath = @getJsonPath(textEditor)
         messages = []
 
-        filePath = textEditor.getPath()
-        source = textEditor.getText()
+        jsonFile = new File(jsonPath)
+        @mayBeExecJar(jsonFile)
 
-        @_log "lint called in ", filePath, "rootDir=", @rootDir
-
-        file = path.join @rootDir, 'kt_analysis_export', 'kt.json'
-        fileObj = new File(file)
-
-        if not fileObj.existsSync()
+        if not jsonFile.existsSync()
             @execJar()
 
         else
-            @_log("reading=", file)
+            @_log("reading=", jsonPath)
 
-            json = @fs.readFileSync(file, { encoding: 'utf-8' })
+            json = @fs.readFileSync(jsonPath, { encoding: 'utf-8' })
             data = JSON.parse(json)
 
-            issues = data.files[filePath]
+            issuesByRegions = data.files
 
-            if issues?
-                for issue in issues
-                    message = ''
-                    message += @_bage('level', issue.level) + ' '
-                    message += @_bage(issue.state.toLowerCase(), issue.predicateType) + ' '
-                    message += issue.shortDescription
+            for key, issues of issuesByRegions
+                if issues?
 
-                    if (issue.references.length > 0)
-                        message +=('<br>assumptions:' + issue.references.length)
-                        for assumption in issue.references
-                            href=assumption.file
-
-                            message +='<br><a data-path="'
-                            message += href
-                            message += '">'
-                            message += assumption.message
-                            message += '</a>'
-                            message +=(' line:' + assumption.textRange[0][0])
-                            message +=(' col:' + assumption.textRange[0][1])
-
+                    collapsed = @collapseIssues(issues)
                     msg = {
-                        type: issue.state
-                        filePath: filePath
-                        range: issue.textRange
-                        html: message
+                        type: collapsed.state
+                        filePath: textEditor.getPath()
+                        range: collapsed.textRange
+                        html: collapsed.message
                     }
 
                     # marker = textEditor.markBufferRange(issue.textRange, {})
@@ -103,14 +99,69 @@ class KtAdvanceScanner
                     # }
                     # textEditor.decorateMarker(marker, options)
 
-                    if(issue.state != 'DISCHARGED')
-                        messages.push(msg)
+                    #if(issue.state != 'DISCHARGED')
+                    messages.push(msg)
 
 
         for marker in textEditor.getMarkers()
             console.log marker
         return messages
 
+    collapseIssues:(issues) ->
+        txt=''
+        state = if issues.length>1 then 'multiple' else issues[0].state
+        i=0
+        for issue in issues
+            txt += @issueToString(issue, issues.length>1)
+            i++
+            if i<issues.length
+                txt += '<hr class="issue-split">'
+            #maximum state
+            # if issue.state=='VIOLATION'
+            #     state='VIOLATION'
+
+        return {
+            message:txt
+            state:state
+            textRange:issues[0].textRange #they all have same text range!
+        }
+
+
+    issueToString:(issue, addState)->
+        message = ''
+        if addState
+            message += @_bage(issue.state.toLowerCase(), issue.state) + ' '
+        message += @_bage('level', issue.level) + ' '
+        message += @_bage(issue.state.toLowerCase(), issue.predicateType) + ' '
+        message += issue.shortDescription
+        message += @_assumptionsToString(issue.references)
+
+        return message
+
+    _assumptionsToString: (references)->
+        message=''
+        if references? and references.length > 0
+            message +='<hr class="issue-split">'
+            message +=('assumptions: ' + references.length)
+            list=''
+            for assumption in references
+                href=assumption.file #TODO: link to!
+
+                list +='<br>'
+                list += @_wrapTag assumption.message, 'a', @_wrapAttr('data-path', href)
+                list +=(' line:' + assumption.textRange[0][0])
+                list +=(' col:' + assumption.textRange[0][1])
+
+            message += @_wrapTag list, 'small'
+
+    _wrapAttr: (attr, val) -> attr + '="' + val + '"'
+
+    _wrapTag: (str, tag, attr) ->
+        attrAdd = ' '+attr
+        if not attr?
+            attrAdd = ''
+
+        '<' + tag + attrAdd + '>' + str + '</' + tag + '>'
 
     _log: (msgs...) ->
         if (msgs.length > 0)

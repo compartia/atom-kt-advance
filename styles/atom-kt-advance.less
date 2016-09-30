@@ -4,11 +4,18 @@
 // for a full listing of what's available.
 @import "ui-variables";
 
+@background-color-error-multiple: #ff9933;
 @background-color-error: #dd1133;
 @background-color-warning: #f2be55;
 @background-color-level: #999999;
 
 .atom-kt-advance {}
+
+hr.issue-split{
+    margin-top: 3px;
+    margin-bottom: 3px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+}
 
 .linter-highlight,
 atom-text-editor::shadow .linter-highlight {
@@ -24,6 +31,21 @@ atom-text-editor::shadow .linter-highlight {
 
         .region {
             border-bottom: 1px dashed @background-color-error;
+        }
+    }
+
+    &.multiple  {
+        &:not(.line-number) {
+            background-color: @background-color-error-multiple;
+            color: white;
+        }
+
+        .linter-gutter {
+            color: @background-color-error-multiple;
+        }
+
+        .region {
+            border-bottom: 1px dashed @background-color-error-multiple;
         }
     }
 
