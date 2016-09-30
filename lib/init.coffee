@@ -50,26 +50,8 @@ module.exports =
         @_log('AtomKtAdvance was toggled!')
 
 
-    getProjectRootDir:(fs) ->
-        textEditor = atom.workspace.getActiveTextEditor()
-        if !textEditor || !textEditor.getPath()
-            @_log 'no active editor'
-            # default to building the first one if no editor is active
-            if not atom.project.getPaths().length
-                @_log 'atom.project.getPaths().length=', atom.project.getPaths().length
-                return false
-            return atom.project.getPaths()[0]
-
-        return atom.project.getPaths()
-            .sort((a, b) -> (b.length - a.length))
-            .find (p) ->
-                realpath = fs.realpathSync(p)
-                # TODO: The following fails if there's a symlink in the path
-                return textEditor.getPath().substr(0, realpath.length) == realpath
-
     provideLinter: ->
         fs = require 'fs'
-        rootDir = @getProjectRootDir(fs)
-        @scanner = new KtAdvanceScanner(fs, rootDir)
+        @scanner = new KtAdvanceScanner(fs)
         @scanner.mayBeExecJar()
         return @scanner
