@@ -2,8 +2,10 @@ KT_JSON_DIR='kt_analysis_export'
 
 {Emitter, File} = require 'atom'
 {BufferedProcess} = require 'atom'
-
+helpers = require 'atom-linter'
+fs = require 'fs'
 path = require 'path'
+# helpers = require 'atom-linter'
 
 class KtAdvanceScanner
 
@@ -14,9 +16,15 @@ class KtAdvanceScanner
 
     fs : null
     path: null
+    linter: null
 
-    constructor: (fileSystem) ->
-        @fs = fileSystem
+
+    setLinter: (_linter) ->
+        @linter=_linter
+
+    constructor: () ->
+        @fs=fs
+        @_log 'contructor'
 
     locateJar: ->
         file = atom.packages.resolvePackagePath ('atom-kt-advance')
@@ -31,21 +39,29 @@ class KtAdvanceScanner
         #if not jsonFile.existsSync()
         #    @execJar()
 
-    execJar:(jsonPath) ->
+    execJar:(jsonPath, textEditor) ->
         jarPath = @locateJar()
         userDir = @findRoot(jsonPath)
 
         command = 'java'
         args = ['-jar', jarPath, userDir]
 
-        stdout = (output) ->
-            if output.startsWith('WARN')
-                console.warn(output)
-            else
-                console.log(output)
+        helpers.exec(command, args, {
+            stream: 'stderr',
+            cwd: userDir,
+            allowEmptyStderr: true
+        })
+            .then (val) =>
+                @parseJson(textEditor, @fs)
 
-        exit = (code) -> console.log('exited with code ' + code)
-        process = new BufferedProcess({command, args, stdout, exit})
+        # stdout = (output) ->
+        #     if output.startsWith('WARN')
+        #         console.warn(output)
+        #     else
+        #         console.log(output)
+        #
+        # exit = (code) -> console.log('exited with code ' + code)
+        # process = new BufferedProcess({command, args, stdout, exit})
 
     findRoot:(filePath)->
         for root in atom.project.getPaths()
@@ -66,47 +82,60 @@ class KtAdvanceScanner
         # @_log 'json path:', file
         return file
 
+    parseJson :(textEditor, fs) ->
+        jsonPath = @getJsonPath(textEditor)
+        messages = []
 
+        json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
+        data = JSON.parse(json)
+
+        issuesByRegions = data.files
+
+        for key, issues of issuesByRegions
+            if issues?
+                collapsed = @collapseIssues(issues)
+                msg = {
+                    type: collapsed.state
+                    filePath: textEditor.getPath()
+                    range: collapsed.textRange
+                    html: collapsed.message
+                }
+
+                messages.push(msg)
+
+        return messages
+
+    scan: (textEditor) ->
+        messages = @lint(textEditor)
+        Promise.resolve(messages).then (value) =>
+            @submitMessages(value)
+
+
+
+    submitMessages:(messages)->
+        @_log 'messages:', messages.length
+        if messages.length is 0
+            @linter?.deleteMessages()
+            return
+        @linter?.setMessages(messages)
 
     lint: (textEditor) =>
 
+        filePath = textEditor.getPath()
+        if not filePath.endsWith('.c')
+            return []
+
         @_log "lint in rootDir=", rootDir = @findRoot(textEditor.getPath())
+
         jsonPath = @getJsonPath(textEditor)
         messages = []
 
         jsonFile = new File(jsonPath)
         if not jsonFile.existsSync()
-            @execJar(jsonPath)
-
+            return @execJar(jsonPath, textEditor)
         else
-            @_log("reading=", jsonPath)
+            return @parseJson(textEditor, @fs)
 
-            json = @fs.readFileSync(jsonPath, { encoding: 'utf-8' })
-            data = JSON.parse(json)
-
-            issuesByRegions = data.files
-
-            for key, issues of issuesByRegions
-                if issues?
-
-                    collapsed = @collapseIssues(issues)
-                    msg = {
-                        type: collapsed.state
-                        filePath: textEditor.getPath()
-                        range: collapsed.textRange
-                        html: collapsed.message
-                    }
-
-                    # marker = textEditor.markBufferRange(issue.textRange, {})
-                    # options={
-                    #     class:'kt-issue-decor'
-                    #     type:'line'
-                    # }
-                    # textEditor.decorateMarker(marker, options)
-
-                    messages.push(msg)
-
-        return messages
 
     collapseIssues:(issues) ->
         txt=''
@@ -167,7 +196,7 @@ class KtAdvanceScanner
 
     _log: (msgs...) ->
         if (msgs.length > 0)
-            prefix = 'kt-advance: '
+            prefix = 'kt-advance scanner: '
             console.log prefix + msgs.join(' ')
 
 module.exports = KtAdvanceScanner
