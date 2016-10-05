@@ -17,7 +17,7 @@ class KtAdvanceJarExecutor
         userDir = @findRoot(jsonPath)
 
         command = 'java'
-        args = ['-jar', jarPath, userDir]
+        args = ['-jar', jarPath, userDir, textEditor.getPath()]
 
         return helpers.exec(command, args, {
             stream: 'stderr',
@@ -32,7 +32,7 @@ class KtAdvanceJarExecutor
         #
         # process = new BufferedProcess({command, args, stdout, exit})
 
-    findRoot:(filePath)->
+    findRoot:(filePath) ->
         for root in atom.project.getPaths()
             relative = path.relative(root, filePath)
             joined = root + path.sep + relative
@@ -40,15 +40,15 @@ class KtAdvanceJarExecutor
                 return root
         return false
 
-        stdout: (outputChunk) ->
-            outputLines=outputChunk.split('\n')
-            for output in outputLines
-                if output.startsWith('ERROR')
-                    console.error (output)
-                else if output.startsWith('WARN')
-                    console.warn (output)
-                else
-                    console.log (output)
+    stdout: (outputChunk) ->
+        outputLines=outputChunk.split('\n')
+        for output in outputLines
+            if output.startsWith('ERROR')
+                console.error (output)
+            else if output.startsWith('WARN')
+                console.warn (output)
+            else
+                console.log (output)
 
     _log: (msgs...) ->
         if (msgs.length > 0)

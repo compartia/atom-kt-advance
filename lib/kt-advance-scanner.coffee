@@ -79,7 +79,7 @@ class KtAdvanceScanner
         @linter?.setMessages(messages)
 
     accept: (filePath) ->
-        return filePath.endsWith('.c')
+        return path.extname(filePath) == '.c'
 
     lint: (textEditor) =>
         filePath = textEditor.getPath()
@@ -137,14 +137,15 @@ class KtAdvanceScanner
             message +=('assumptions: ' + references.length)
             list=''
             for assumption in references
-                href=assumption.file #TODO: link to!
+                href='link does not open file :-('#assumption.file #TODO: link to!
 
                 list +='<br>'
-                list += @_wrapTag assumption.message, 'a', @_wrapAttr('data-path', href)
+                list += @_wrapTag assumption.message, 'a', @_wrapAttr('href', href)
                 list +=(' line:' + assumption.textRange[0][0])
                 list +=(' col:' + assumption.textRange[0][1])
 
             message += @_wrapTag list, 'small'
+
 
     _wrapAttr: (attr, val) -> attr + '="' + val + '"'
 
