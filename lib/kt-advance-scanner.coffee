@@ -1,11 +1,10 @@
 KT_JSON_DIR='kt_analysis_export'
 
-{Emitter, File} = require 'atom'
-{BufferedProcess} = require 'atom'
-helpers = require 'atom-linter'
+{File} = require 'atom'
 fs = require 'fs'
 path = require 'path'
-# helpers = require 'atom-linter'
+
+KtAdvanceJarExecutor = require './jar-exec'
 
 class KtAdvanceScanner
 
@@ -14,24 +13,16 @@ class KtAdvanceScanner
     lintsOnChange: false #for V2 # Only lint on save
     lintOnFly: false # Only lint on save
 
-    fs : null
-    path: null
     linter: null
+    executor: null
+
+    constructor: () ->
+        @_log 'contructor'
+        @executor=new KtAdvanceJarExecutor()
 
 
     setLinter: (_linter) ->
         @linter=_linter
-
-    constructor: () ->
-        @fs=fs
-        @_log 'contructor'
-
-    locateJar: ->
-        file = atom.packages.resolvePackagePath ('atom-kt-advance')
-        if file?
-            file = path.join file, 'lib', 'json-kt-advance-5.5.4-jar-with-dependencies.jar'
-
-        return file
 
 
     mayBeExecJar: (jsonFile) ->
@@ -39,42 +30,10 @@ class KtAdvanceScanner
         #if not jsonFile.existsSync()
         #    @execJar()
 
-    execJar:(jsonPath, textEditor) ->
-        jarPath = @locateJar()
-        userDir = @findRoot(jsonPath)
-
-        command = 'java'
-        args = ['-jar', jarPath, userDir]
-
-        helpers.exec(command, args, {
-            stream: 'stderr',
-            cwd: userDir,
-            allowEmptyStderr: true
-        })
-            .then (val) =>
-                @parseJson(textEditor, @fs)
-
-        # stdout = (output) ->
-        #     if output.startsWith('WARN')
-        #         console.warn(output)
-        #     else
-        #         console.log(output)
-        #
-        # exit = (code) -> console.log('exited with code ' + code)
-        # process = new BufferedProcess({command, args, stdout, exit})
-
-    findRoot:(filePath)->
-        for root in atom.project.getPaths()
-            relative = path.relative(root, filePath)
-            joined = root + path.sep + relative
-            if joined == filePath
-                return root
-        return false
-
 
     getJsonPath:(textEditor) ->
         filePath = textEditor.getPath()
-        rootDir = @findRoot(filePath)
+        rootDir = @executor.findRoot(filePath)
         # @_log 'rootDir:', rootDir
         relative = path.relative(rootDir, filePath)
         # @_log 'relative path:', relative
@@ -82,7 +41,7 @@ class KtAdvanceScanner
         # @_log 'json path:', file
         return file
 
-    parseJson :(textEditor, fs) ->
+    parseJson :(textEditor) ->
         jsonPath = @getJsonPath(textEditor)
         messages = []
 
@@ -119,22 +78,27 @@ class KtAdvanceScanner
             return
         @linter?.setMessages(messages)
 
-    lint: (textEditor) =>
+    accept: (filePath) ->
+        return filePath.endsWith('.c')
 
+    lint: (textEditor) =>
         filePath = textEditor.getPath()
-        if not filePath.endsWith('.c')
+
+        if not @accept(filePath)
             return []
 
-        @_log "lint in rootDir=", rootDir = @findRoot(textEditor.getPath())
-
-        jsonPath = @getJsonPath(textEditor)
-        messages = []
-
-        jsonFile = new File(jsonPath)
-        if not jsonFile.existsSync()
-            return @execJar(jsonPath, textEditor)
         else
-            return @parseJson(textEditor, @fs)
+
+            jsonPath = @getJsonPath(textEditor)
+            messages = []
+
+            jsonFile = new File(jsonPath)
+
+            if not jsonFile.existsSync()
+                return @executor.execJar(jsonPath, textEditor).then =>
+                    @parseJson(textEditor)
+            else
+                return @parseJson(textEditor)
 
 
     collapseIssues:(issues) ->
@@ -198,5 +162,10 @@ class KtAdvanceScanner
         if (msgs.length > 0)
             prefix = 'kt-advance scanner: '
             console.log prefix + msgs.join(' ')
+
+    _warn: (msgs...) ->
+        if (msgs.length > 0)
+            prefix = 'kt-advance scanner: '
+            console.warn prefix + msgs.join(' ')
 
 module.exports = KtAdvanceScanner
