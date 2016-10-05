@@ -1,5 +1,5 @@
-# {BufferedProcess} = require 'atom'
-helpers = require 'atom-linter'
+{BufferedProcess} = require 'atom'
+#helpers = require 'atom-linter'
 path = require 'path'
 
 
@@ -19,18 +19,23 @@ class KtAdvanceJarExecutor
         command = 'java'
         args = ['-jar', jarPath, userDir, textEditor.getPath()]
 
-        return helpers.exec(command, args, {
-            stream: 'stderr',
-            cwd: userDir,
-            allowEmptyStderr: true
-        })
+        # return helpers.exec(command, args, {
+        #     stream: 'stderr',
+        #     cwd: userDir,
+        #     allowEmptyStderr: true
+        # })
 
+        promise = new Promise( (resolve, reject) =>
+            exit = (code) ->
+                console.log('exited with code ' + code)
+                # @parseJson(textEditor, @fs)
+                if code==0
+                    resolve()
+                else
+                    reject()
 
-        # exit = (code) =>
-        #     console.log('exited with code ' + code)
-        #     @parseJson(textEditor, @fs)
-        #
-        # process = new BufferedProcess({command, args, stdout, exit})
+            process = new BufferedProcess({command, args, @stdout, exit})
+        )
 
     findRoot:(filePath) ->
         for root in atom.project.getPaths()

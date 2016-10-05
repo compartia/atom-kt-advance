@@ -16,8 +16,7 @@
     },
 
     "dependencies": {
-        "atom-package-deps": "^2.0.3",
-        "atom-linter": "^5.0.1"
+        "atom-package-deps": "^2.0.3"
     },
 
     "providedServices": {
@@ -33,11 +32,6 @@
             "versions": {
                 "1.0.0": "consumeLinter"
             }
-        },
-        "linter-plus-self": {
-          "versions": {
-            "0.1.0": "consumeLinter"
-          }
         }
     },
 
