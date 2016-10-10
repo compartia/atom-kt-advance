@@ -1,5 +1,4 @@
 {BufferedProcess} = require 'atom'
-#helpers = require 'atom-linter'
 path = require 'path'
 
 
@@ -18,12 +17,6 @@ class KtAdvanceJarExecutor
 
         command = 'java'
         args = ['-jar', jarPath, userDir, textEditor.getPath()]
-
-        # return helpers.exec(command, args, {
-        #     stream: 'stderr',
-        #     cwd: userDir,
-        #     allowEmptyStderr: true
-        # })
 
         promise = new Promise( (resolve, reject) =>
             exit = (code) ->
