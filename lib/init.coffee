@@ -24,8 +24,6 @@ module.exports =
         @scanner = new KtAdvanceScanner()
 
         @_log("activate")
-        # require('atom-package-deps').install('atom-linter')
-        @_log("activate install")
 
         # require('atom-package-deps').install('atom-kt-advance')
         @subscriptions = new CompositeDisposable
@@ -44,18 +42,29 @@ module.exports =
                     @verboseLogging = (newValue == true)
         )
 
+        @layersByEditorId={}
         @subscriptions.add(
             atom.workspace.observeTextEditors (textEditor) => (
                 console.log 'scanning: ' + textEditor.getPath()
-                @scanner.scan(textEditor)
+                @scanner.scan textEditor
             )
         )
+
+        @subscriptions.add(
+            atom.workspace.onDidOpen( (event) =>
+                @_log 'OPENED: ',  event.uri
+                @_log 'OPENED: ',  event.item
+                @scanner.scan event.item
+            )
+        )
+
+
 
     toggle: ->
         @_log('AtomKtAdvance was toggled!')
 
     consumeLinter: (registry) ->
-        @_log 'Trying to register indie linter'
+        @_log 'Attempting to register an indie linter'
         atom.packages.activate('linter').then =>
             #TODO: this is called twice!!
             registry = atom.packages.getLoadedPackage('linter').mainModule.provideIndie()
@@ -68,9 +77,6 @@ module.exports =
             @subscriptions.add(linter)
             @scanner.setLinter(linter)
             @_log 'indie linter registered'
-            @_log linter
-
-
 
     provideLinter: ->
         @scanner.mayBeExecJar()

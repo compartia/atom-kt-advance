@@ -9,7 +9,20 @@
 @background-color-warning: #f2be55;
 @background-color-level: #999999;
 
-.atom-kt-advance {}
+.atom-kt-advance {
+
+}
+atom-text-editor::shadow {
+    .kt-assumption{
+        .region{
+            background: fadeout(@background-color-error-multiple, 50%);
+            min-width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+    }
+}
+
 
 hr.issue-split{
     margin-top: 3px;
