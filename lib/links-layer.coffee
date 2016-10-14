@@ -38,7 +38,13 @@ class KtAdvanceColorLayer
 
         # TODO write this method
 
-    markBufferRange: (range) ->
+    makeAssumptionDescr: (message)->
+        el = document.createElement('linter-message')
+        el.textContent = message
+        el.className = 'kt-assumption'
+        return el
+
+    markBufferRange: (range, message) ->
         marker = @markerLayer.markBufferRange(range)
         marker.onDidChange (event) =>
             @updateLinks(marker.id)
@@ -46,8 +52,10 @@ class KtAdvanceColorLayer
 
         decorationParams = {
             type: 'highlight'
+            # type: 'overlay'
             class: 'kt-assumption'
             includeMarkerText: true
+            # item: @makeAssumptionDescr(message)
         }
         decoration = @editor.decorateMarker(marker, decorationParams)
         @markers.push marker

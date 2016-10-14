@@ -7,7 +7,7 @@ class KtAdvanceJarExecutor
     locateJar: ->
         file = atom.packages.resolvePackagePath ('atom-kt-advance')
         if file?
-            file = path.join file, 'lib', 'json-kt-advance-5.5.4-jar-with-dependencies.jar'
+            file = path.join file, 'lib', 'json-kt-advance-5.5.5-jar-with-dependencies.jar'
 
 
 

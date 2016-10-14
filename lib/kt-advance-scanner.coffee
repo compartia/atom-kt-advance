@@ -46,14 +46,25 @@ class KtAdvanceScanner
         @registry = _registry
         # console.warn @registry
 
+    findKtAlaysisDirLocation:(textEditor) ->
+        filePath = textEditor.getPath()
+
+        parent=path.dirname filePath
+
+        while parent!=null
+            dir = new File(path.join parent, KT_JSON_DIR )
+            if dir.existsSync()
+                return parent
+
+            parent=path.dirname
+
+        return null
+
     getJsonPath:(textEditor) ->
         filePath = textEditor.getPath()
-        rootDir = @executor.findRoot(filePath)
-        # @_log 'rootDir:', rootDir
-        relative = path.relative(rootDir, filePath)
-        # @_log 'relative path:', relative
-        file = path.join rootDir, KT_JSON_DIR, (relative + '.json')
-        # @_log 'json path:', file
+        ktDir = @findKtAlaysisDirLocation(textEditor)
+        relative = path.relative(ktDir, filePath)
+        file = path.join ktDir, KT_JSON_DIR,  (relative + '.json')
         return file
 
     getOrMakeMarkersLayer: (textEditor)->
@@ -186,11 +197,14 @@ class KtAdvanceScanner
         jsonPath = @getJsonPath(textEditor)
         messages = []
 
-        json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
-        data = JSON.parse(json)
+        try
+            json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
+            data = JSON.parse(json)
 
-        issuesByRegions = data.files
-
+            issuesByRegions = data.posByKey
+        catch e
+            console.error e
+          # body...
 
         markersLayer = @getOrMakeMarkersLayer(textEditor)
         markersLayer.removeAllMarkers()
@@ -296,7 +310,7 @@ class KtAdvanceScanner
         dir = path.dirname markersLayer.editor.getPath()
         file = path.join dir, assumption.file #TODO: make properly relative
 
-        decoration = markersLayer.markBufferRange assumption.textRange
+        decoration = markersLayer.markBufferRange assumption.textRange, assumption.message
         marker = decoration.getMarker()
 
         message = ''

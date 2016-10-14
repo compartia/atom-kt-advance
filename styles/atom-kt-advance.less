@@ -12,16 +12,18 @@
 .atom-kt-advance {
 
 }
-atom-text-editor::shadow {
-    .kt-assumption{
-        .region{
-            background: fadeout(@background-color-error-multiple, 50%);
-            min-width: 10px;
-            height: 10px;
-            border-radius: 3px;
-        }
+
+atom-text-editor .kt-assumption, kt-assumption-msg,
+atom-text-editor::shadow .kt-assumption{
+    .region{
+        background: fadeout(@background-color-error-multiple, 50%);
+        min-width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        border: 1px solid white;
     }
 }
+
 atom-text-editor::shadow #kt-location,
 #kt-location{
     color: @background-color-warning!important;
