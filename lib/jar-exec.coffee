@@ -15,8 +15,12 @@ class KtAdvanceJarExecutor
         jarPath = @locateJar()
         userDir = @findRoot(jsonPath)
 
+
+        @_log 'run: ', userDir,  ' json:', jsonPath
+
         command = 'java'
         args = ['-jar', jarPath, userDir, textEditor.getPath()]
+
 
         promise = new Promise( (resolve, reject) =>
             exit = (code) ->

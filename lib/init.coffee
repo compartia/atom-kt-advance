@@ -1,4 +1,5 @@
 KtAdvanceScanner = require './kt-advance-scanner'
+KtEditorsRegistry = require './editors-reg'
 
 {Directory, CompositeDisposable} = require 'atom'
 
@@ -22,6 +23,7 @@ module.exports =
         # state-object as preparation for user-notifications
         @state = if state then state or {}
         @scanner = new KtAdvanceScanner()
+        @reg = new KtEditorsRegistry(@scanner)
 
         @_log("activate")
 
@@ -46,18 +48,20 @@ module.exports =
         @subscriptions.add(
             atom.workspace.observeTextEditors (textEditor) => (
                 console.log 'Scanning: ' + textEditor.getPath()
+                @reg.addEditor(textEditor)
                 if @scanner.accept textEditor.getPath()
                     @scanner.scan textEditor
             )
         )
 
-        # @subscriptions.add(
-        #     atom.workspace.onDidOpen( (event) =>
-        #         @_log 'OPENED: ',  event.uri
-        #         @_log 'OPENED: ',  event.item
-        #         @scanner.scan event.item
-        #     )
-        # )
+        @subscriptions.add(
+            atom.workspace.onDidOpen( (event) =>
+                @_log 'OPENED: ',  event.uri
+                @_log 'OPENED: ',  event.item
+                @reg.addEditor(event.item)
+                @scanner.scan event.item
+            )
+        )
 
     toggle: ->
         @_log('AtomKtAdvance was toggled!')
@@ -79,10 +83,6 @@ module.exports =
             @subscriptions.add(linter)
             @scanner.setLinter(linter)
             @scanner.setRegistry(reg)
-
-            linter.onDidUpdateMessages (messages)->
-                assumptionLinks = document.getElementsByClassName("kt-assumption-link-src")
-                console.error 'onDidUpdateMessages!! '+ assumptionLinks.length
 
             @_log 'indie linter registered'
 

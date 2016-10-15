@@ -5,7 +5,7 @@ fs = require 'fs'
 path = require 'path'
 
 KtAdvanceJarExecutor = require './jar-exec'
-KtAdvanceColorLayer = require './links-layer'
+KtAdvanceMarkersLayer = require './markers-layer'
 
 
 class KtAdvanceScanner
@@ -49,28 +49,34 @@ class KtAdvanceScanner
     findKtAlaysisDirLocation:(textEditor) ->
         filePath = textEditor.getPath()
 
-        parent=path.dirname filePath
-
-        while parent!=null
-            dir = new File(path.join parent, KT_JSON_DIR )
+        parent = path.dirname(filePath)
+        # console.error parent
+        k=0
+        while parent!=null && parent!='' && (parent?) && parent!='\\' && parent!='/' && k<100
+            k++
+            dir = new File(path.join parent, 'ch_analysis')
+            # console.error dir
             if dir.existsSync()
                 return parent
 
-            parent=path.dirname
+            parent = path.dirname(parent)
+
 
         return null
 
     getJsonPath:(textEditor) ->
         filePath = textEditor.getPath()
         ktDir = @findKtAlaysisDirLocation(textEditor)
-        relative = path.relative(ktDir, filePath)
-        file = path.join ktDir, KT_JSON_DIR,  (relative + '.json')
-        return file
+        if ktDir
+            relative = path.relative(ktDir, filePath)
+            file = path.join ktDir, KT_JSON_DIR,  (relative + '.json')
+            return file
+        return null
 
     getOrMakeMarkersLayer: (textEditor)->
         # @_log 'creating marker layer for editor id '+ textEditor.id, '....'
         if not @layersByEditorId[textEditor.id]?
-            @layersByEditorId[textEditor.id] = new KtAdvanceColorLayer(textEditor)
+            @layersByEditorId[textEditor.id] = new KtAdvanceMarkersLayer(textEditor)
             @_log 'created marker layer for editor id '+ textEditor.id
         return @layersByEditorId[textEditor.id]
 
@@ -100,10 +106,8 @@ class KtAdvanceScanner
         return
 
     updateLinkLineNumber:(link, markersLayer)->
-        markerId = parseInt(link.getAttribute('data-marker-id'))
-        marker = markersLayer.getMarker(markerId)
-        range = marker.getScreenRange()
-
+        refId = link.getAttribute('data-marker-id')+'-lnk'
+        range = markersLayer.getMarkerRange(refId)
 
         el= link.querySelector("#kt-location")
         el.innerHTML = 'line:'+(range.start.row+1)+' col:'+range.start.column
@@ -120,6 +124,8 @@ class KtAdvanceScanner
     scan: (textEditor) ->
         editorLinter= @registry?.getActiveEditorLinter()
 
+        #
+        # listen to Bubble. When bubble is up, update DOM after some timeout
         textEditor.onDidAddDecoration (decoration)=>
             if decoration.properties.type=='overlay'
                 el = decoration.properties.item
@@ -130,33 +136,8 @@ class KtAdvanceScanner
         #TODO: use @bubbleInterval x 2 from Linter config
 
 
-        # editorLinter?.onShouldUpdateBubble (x)=>
-        #     decorations = textEditor.getOverlayDecorations([])
-        #     for decor in decorations
-        #         decor.properties.item.appendChild(@makeArtem())
-        #         console.warn decor.properties.item
 
-            # els = document.getElementsByClassName('kt-assumption-link-src')
-            # if els
-            #     for el in els
-            #         el.appendChild(@makeArtem())
-
-
-        # markersLayer = @getOrMakeMarkersLayer(textEditor)
-        # editorLinter?.onDidMessageAdd (msg) =>
-        #     marker = editorLinter.markers.get(msg)
-        #     decorations = @getDecorationsByMarker(textEditor, marker)
-        #     for decor in decorations
-        #         # decor.properties.item.appendChild(@makeArtem())
-        #         console.warn decor.properties.item
-
-            # if msg.linkedMarkerIds
-            #     for arr in msg.linkedMarkerIds
-            #         for markerId in arr
-            #             console.warn markerId
-            #             markersLayer.updateLinks(markerId)
-
-        messages = @lint(textEditor)
+        messages = @_lint(textEditor)
 
         Promise.resolve(messages).then (value) =>
             @submitMessages(value)
@@ -174,6 +155,11 @@ class KtAdvanceScanner
 
     ## @Overrides
     lint: (textEditor) =>
+        # scan: (textEditor)
+        return []
+        # messages =  @_lint(textEditor)
+
+    _lint: (textEditor) =>
         filePath = textEditor.getPath()
 
         if not @accept(filePath)
@@ -187,81 +173,78 @@ class KtAdvanceScanner
 
             if not jsonFile.existsSync()
                 return @executor.execJar(jsonPath, textEditor).then =>
-                    parsed = @parseJson(textEditor)
-                    return parsed[0]
+                    return @parseJson(textEditor)
             else
-                parsed = @parseJson(textEditor)
-                return parsed[0]
+                return @parseJson(textEditor)
+
 
     parseJson :(textEditor) ->
         jsonPath = @getJsonPath(textEditor)
         messages = []
 
-        try
-            json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
-            data = JSON.parse(json)
+        # try
+        json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
+        data = JSON.parse(json)
 
-            issuesByRegions = data.posByKey
-        catch e
-            console.error e
-          # body...
+        issuesByRegions = data.posByKey
 
         markersLayer = @getOrMakeMarkersLayer(textEditor)
-        markersLayer.removeAllMarkers()
+        # markersLayer.removeAllMarkers()
 
         messages = @collectMesages(issuesByRegions, textEditor.getPath(), markersLayer)
-        links = @collectLinks(issuesByRegions)
+        # catch e
+        #     console.error e
 
-        # ------
-        return [messages, links]
+        return messages
 
 
     collectMesages:(issuesByRegions, filePath, markersLayer) ->
         messages = []
-        i=0;
+        # i=0;
         for key, issues of issuesByRegions
             if issues?
                 collapsed = @collapseIssues(issues, markersLayer)
-                i++
+                # i++
                 msg = {
                     type: collapsed.state
                     filePath: filePath
                     range: collapsed.textRange
                     html: collapsed.message
-                    linkedMarkerIds: collapsed.linkedMarkerIds
-                    ktId: i
+                    # linkedMarkerIds: collapsed.linkedMarkerIds
+                    # ktId: i
                 }
+
+                for issue in issues
+                    markersLayer.putMessage issue.referenceKey, msg
 
                 messages.push(msg)
         return messages
 
-    collectLinks:(issuesByRegions) ->
-        links=[]
-        for key, issues of issuesByRegions
-            if issues?
-                for issue in issues
-                    references=issue.references
-                    if references? and references.length > 0
-                        for assumption in references
-                            link={
-                                text:assumption.message
-                                from: issues[0].textRange
-                                to:assumption.textRange
-                            }
-                            links.push(link)
-        @_log 'links.length=', links.length
-        return links
+    # collectLinks:(issuesByRegions) ->
+    #     links=[]
+    #     for key, issues of issuesByRegions
+    #         if issues?
+    #             for issue in issues
+    #                 references=issue.references
+    #                 if references? and references.length > 0
+    #                     for assumption in references
+    #                         link={
+    #                             text:assumption.message
+    #                             from: issues[0].textRange
+    #                             to:assumption.textRange
+    #                         }
+    #                         links.push(link)
+    #     @_log 'links.length=', links.length
+    #     return links
 
     collapseIssues:(issues, markersLayer) ->
         txt=''
-        markers=[]
         state = if issues.length>1 then 'multiple' else issues[0].state
         i=0
         for issue in issues
             markedLinks=@issueToString(issue, issues.length>1, markersLayer)
 
             txt += markedLinks[1]
-            markers.push markedLinks[0]
             i++
             if i<issues.length
                 txt += '<hr class="issue-split">'
@@ -269,9 +252,9 @@ class KtAdvanceScanner
         return {
             message:txt
             state:state
-            linkedMarkerIds:markers
+            # linkedMarkerIds:markers
             #they all have same text range, so just take 1st
-            textRange:issues[0].textRange
+            textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
         }
 
 
@@ -310,8 +293,10 @@ class KtAdvanceScanner
         dir = path.dirname markersLayer.editor.getPath()
         file = path.join dir, assumption.file #TODO: make properly relative
 
-        decoration = markersLayer.markBufferRange assumption.textRange, assumption.message
-        marker = decoration.getMarker()
+        marker = markersLayer.markLinkTargetRange(
+            assumption.referenceKey+'-lnk',
+            assumption.textRange, assumption.message)
+
 
         message = ''
         message += @_wrapTag '', 'span', @_wrapAttr('id', 'kt-location')
@@ -324,8 +309,8 @@ class KtAdvanceScanner
         attrs = ' '
         attrs += @_wrapAttr('href', '#')
         attrs += @_wrapAttr('id', 'kt-assumption-link-src')
-        attrs += @_wrapAttr('data-marker-id', marker.id)
-        attrs += @_wrapAttr('class', 'kt-assumption-link-src kt-assumption-'+marker.id)
+        attrs += @_wrapAttr('data-marker-id', assumption.referenceKey)
+        # attrs += @_wrapAttr('class', 'kt-assumption-link-src kt-assumption-'+marker.id)
         attrs += @_wrapAttr('line', assumption.textRange[0][0])
         attrs += @_wrapAttr('col', assumption.textRange[0][1])
         attrs += @_wrapAttr('uri', file)
