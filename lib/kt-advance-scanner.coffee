@@ -27,10 +27,6 @@ class KtAdvanceScanner
         @layersByEditorId=[]
         @subscriptions = new CompositeDisposable()
 
-        # @observer = new MutationObserver (mutations) ->
-        #     mutations.forEach (mutation) ->
-        #         console.error mutation.type
-
         @subscriptions.add(
             atom.config.observe 'linter.inlineTooltipInterval',
                 (newValue) =>
@@ -80,63 +76,8 @@ class KtAdvanceScanner
             @_log 'created marker layer for editor id '+ textEditor.id
         return @layersByEditorId[textEditor.id]
 
-
-    # getDecorationsByMarker: (textEditor, marker)->
-    #     selected =[]
-    #     decorations = textEditor.getOverlayDecorations([])
-    #     for decor in decorations
-    #         if decor.getMarker().id == marker.id
-    #             if decor.properties.item
-    #                 selected.push decor
-    #     return selected
-
-
-    updateLinks: (el, textEditor) ->
-        Promise.resolve(el).then (value) =>
-
-            links = value.querySelectorAll("#kt-assumption-link-src")
-            # console.warn 'links:'
-            # console.warn links
-            # Promise.resolve(links).then (lnks)=>
-            if links?
-                markersLayer = @getOrMakeMarkersLayer textEditor
-                for link in links
-                    @updateLinkLineNumber(link, markersLayer)
-
-        return
-
-    updateLinkLineNumber:(link, markersLayer)->
-        refId = link.getAttribute('data-marker-id')+'-lnk'
-        range = markersLayer.getMarkerRange(refId)
-
-        el= link.querySelector("#kt-location")
-        el.innerHTML = 'line:'+(range.start.row+1)+' col:'+range.start.column
-        file = link.getAttribute('uri')
-        link.onclick = ()=>
-            options = {
-                initialLine: range.start.row
-                initialColumn: range.start.column
-            }
-            atom.workspace.open(file, options)
-
-        return el
-
     scan: (textEditor) ->
-        editorLinter= @registry?.getActiveEditorLinter()
-
-        #
-        # listen to Bubble. When bubble is up, update DOM after some timeout
-        textEditor.onDidAddDecoration (decoration)=>
-            if decoration.properties.type=='overlay'
-                el = decoration.properties.item
-                if el? and el.querySelector?
-                    setTimeout( =>
-                        @updateLinks(el, textEditor)
-                    , 250)
-        #TODO: use @bubbleInterval x 2 from Linter config
-
-
-
+        markersLayer = @getOrMakeMarkersLayer(textEditor)
         messages = @_lint(textEditor)
 
         Promise.resolve(messages).then (value) =>
@@ -220,23 +161,7 @@ class KtAdvanceScanner
                 messages.push(msg)
         return messages
 
-    # collectLinks:(issuesByRegions) ->
-    #     links=[]
-    #     for key, issues of issuesByRegions
-    #         if issues?
-    #             for issue in issues
-    #                 references=issue.references
-    #                 if references? and references.length > 0
-    #                     for assumption in references
-    #                         link={
-    #                             text:assumption.message
-    #                             from: issues[0].textRange
-    #                             to:assumption.textRange
-    #                         }
-    #                         links.push(link)
-    #     @_log 'links.length=', links.length
-    #     return links
-
+     
     collapseIssues:(issues, markersLayer) ->
         txt=''
         state = if issues.length>1 then 'multiple' else issues[0].state

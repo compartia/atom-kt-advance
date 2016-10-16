@@ -9,6 +9,19 @@ class KtAdvanceMarkersLayer
         @markersByReferenceKey={}
         @_addMarkerLayer(editor)
 
+        ##
+        # listen to Bubble. When bubble is up, update DOM after some timeout
+        # TODO : this is a dirty hack
+        @editor.onDidAddDecoration (decoration) =>
+            if decoration.properties.type=='overlay'
+                el = decoration.properties.item
+                if el? and el.querySelector?
+                    setTimeout( =>
+                        @updateAssumptionsLinks(el)
+                    , 250)
+        #TODO: remove magic 250, use @bubbleInterval x 2 from Linter config
+        #TODO: for unknown reason, bubbleInterval isn't available at this moment
+
 
     putMessage: (referenceKey, message)->
         # console.warn "put msg:" + referenceKey
@@ -77,6 +90,32 @@ class KtAdvanceMarkersLayer
         }
         atom.workspace.open(fileLink.file, options)
 
+    updateAssumptionsLinks: (el) ->
+        Promise.resolve(el).then (value) =>
+
+            links = value.querySelectorAll("#kt-assumption-link-src")
+
+            if links?
+                for link in links
+                    @_updateAssumptionsLineNumber(link)
+
+        return
+
+    _updateAssumptionsLineNumber:(link)->
+        refId = link.getAttribute('data-marker-id')+'-lnk'
+        range = @getMarkerRange(refId)
+
+        el= link.querySelector("#kt-location")
+        el.innerHTML = 'line:'+(range.start.row+1)+' col:'+range.start.column
+        file = link.getAttribute('uri')
+        link.onclick = () =>
+            options = {
+                initialLine: range.start.row
+                initialColumn: range.start.column
+            }
+            atom.workspace.open(file, options)
+
+        return el
 
     # not in use
     # deprecated

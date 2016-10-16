@@ -4,9 +4,8 @@ class KtEditorsRegistry
     editorById:{}
 
 
-    constructor: (scanner) ->
-        @scanner=scanner
-
+    constructor: (_scanner) ->
+        @scanner = _scanner
 
     addEditor:(editor)->
         if @editorById[editor.id] != editor
