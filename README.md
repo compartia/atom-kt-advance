@@ -1,4 +1,4 @@
-# KT-Advance C Ananlyser Atom package for linter
+# KT-Advance C Analyser Atom package for linter
 
 ## Installation and first run
 
