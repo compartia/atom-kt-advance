@@ -22,8 +22,11 @@ module.exports =
 
         # state-object as preparation for user-notifications
         @state = if state then state or {}
-        @scanner = new KtAdvanceScanner()
-        @reg = new KtEditorsRegistry(@scanner)
+
+        @reg = new KtEditorsRegistry()
+
+        @scanner = new KtAdvanceScanner(@reg)
+        @reg.setScanner(@scanner)
 
         @_log("activate")
 
@@ -82,7 +85,6 @@ module.exports =
             # @pullRequestLinter.setLinter(linter)
             @subscriptions.add(linter)
             @scanner.setLinter(linter)
-            @scanner.setRegistry(reg)
 
             @_log 'indie linter registered'
 

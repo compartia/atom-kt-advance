@@ -1,12 +1,14 @@
 KT_JSON_DIR='kt_analysis_export'
 
+Logger = require './logger'
+
 {File, CompositeDisposable} = require 'atom'
 fs = require 'fs'
 path = require 'path'
 
 KtAdvanceJarExecutor = require './jar-exec'
 KtAdvanceMarkersLayer = require './markers-layer'
-
+Htmler = require './html-helper'
 
 class KtAdvanceScanner
 
@@ -18,40 +20,30 @@ class KtAdvanceScanner
     linter: null
     registry: null
     executor: null
-    bubbleInterval: 150
 
 
-    constructor: () ->
-        @_log 'contructor'
+
+
+    constructor: (_registry) ->
+        Logger.log 'contructor'
+        @registry=_registry
         @executor=new KtAdvanceJarExecutor()
         @layersByEditorId=[]
-        @subscriptions = new CompositeDisposable()
 
-        @subscriptions.add(
-            atom.config.observe 'linter.inlineTooltipInterval',
-                (newValue) =>
-                    @bubbleInterval = newValue*2
-                    console.error @bubbleInterval
-        )
 
 
     setLinter: (_linter) ->
         @linter=_linter
 
-    setRegistry: (_registry) ->
-        @registry = _registry
-        # console.warn @registry
 
     findKtAlaysisDirLocation:(textEditor) ->
         filePath = textEditor.getPath()
-
         parent = path.dirname(filePath)
-        # console.error parent
+
         k=0
         while parent!=null && parent!='' && (parent?) && parent!='\\' && parent!='/' && k<100
             k++
             dir = new File(path.join parent, 'ch_analysis')
-            # console.error dir
             if dir.existsSync()
                 return parent
 
@@ -69,23 +61,15 @@ class KtAdvanceScanner
             return file
         return null
 
-    getOrMakeMarkersLayer: (textEditor)->
-        # @_log 'creating marker layer for editor id '+ textEditor.id, '....'
-        if not @layersByEditorId[textEditor.id]?
-            @layersByEditorId[textEditor.id] = new KtAdvanceMarkersLayer(textEditor)
-            @_log 'created marker layer for editor id '+ textEditor.id
-        return @layersByEditorId[textEditor.id]
-
     scan: (textEditor) ->
-        markersLayer = @getOrMakeMarkersLayer(textEditor)
         messages = @_lint(textEditor)
 
         Promise.resolve(messages).then (value) =>
-            @submitMessages(value)
+            @_submitMessages(value)
 
 
-    submitMessages:(messages)->
-        @_log 'messages:', messages.length
+    _submitMessages:(messages)->
+        Logger.log 'messages:', messages.length
         if messages.length is 0
             @linter?.deleteMessages()
             return
@@ -95,10 +79,10 @@ class KtAdvanceScanner
         return path.extname(filePath) == '.c'
 
     ## @Overrides
-    lint: (textEditor) =>
-        # scan: (textEditor)
+    lint: (textEditor) ->
+        # do nothing, because this is async indie linter
+        #we  have own onSave listener.
         return []
-        # messages =  @_lint(textEditor)
 
     _lint: (textEditor) =>
         filePath = textEditor.getPath()
@@ -113,6 +97,7 @@ class KtAdvanceScanner
             jsonFile = new File(jsonPath)
 
             if not jsonFile.existsSync()
+                #run JAR first to generate json-s
                 return @executor.execJar(jsonPath, textEditor).then =>
                     return @parseJson(textEditor)
             else
@@ -123,18 +108,13 @@ class KtAdvanceScanner
         jsonPath = @getJsonPath(textEditor)
         messages = []
 
-        # try
         json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
         data = JSON.parse(json)
 
         issuesByRegions = data.posByKey
 
-        markersLayer = @getOrMakeMarkersLayer(textEditor)
-        # markersLayer.removeAllMarkers()
-
+        markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
         messages = @collectMesages(issuesByRegions, textEditor.getPath(), markersLayer)
-        # catch e
-        #     console.error e
 
         return messages
 
@@ -161,7 +141,7 @@ class KtAdvanceScanner
                 messages.push(msg)
         return messages
 
-     
+
     collapseIssues:(issues, markersLayer) ->
         txt=''
         state = if issues.length>1 then 'multiple' else issues[0].state
@@ -169,7 +149,7 @@ class KtAdvanceScanner
         for issue in issues
             markedLinks=@issueToString(issue, issues.length>1, markersLayer)
 
-            txt += markedLinks[1]
+            txt += markedLinks
             i++
             if i<issues.length
                 txt += '<hr class="issue-split">'
@@ -186,84 +166,71 @@ class KtAdvanceScanner
     issueToString:(issue, addState, markersLayer)->
         message = ''
         if addState
-            message += @_bage(issue.state.toLowerCase(), issue.state) + ' '
-        message += @_bage('level', issue.level) + ' '
-        message += @_bage(issue.state.toLowerCase(), issue.predicateType) + ' '
+            message += Htmler.bage(issue.state.toLowerCase(), issue.state) + ' '
+        message += Htmler.bage('level', issue.level) + ' '
+        message += Htmler.bage(issue.state.toLowerCase(), issue.predicateType) + ' '
         message += issue.shortDescription
+        message += Htmler.wrapTag '', 'span', Htmler.wrapAttr('data-marker-id', issue.referenceKey)
 
-        markedLinks= @_assumptionsToString(issue.references, markersLayer)
-        message += markedLinks[1]
+        markedLinks= @_assumptionsToString(issue, markersLayer)
+        message += markedLinks
 
-        return [markedLinks[0], message]
+        return message
 
-    _assumptionsToString: (references, markersLayer)->
-        message=''
-        markers=[]
+    _assumptionsToString: (issue , markersLayer)->
+        references = issue.references
+        message = ''
         if references? and references.length > 0
             message +='<hr class="issue-split">'
             message +=('assumptions: ' + references.length)
+
             list=''
             for assumption in references
-                list +='<br>'
-                markedLink=@_linkAssumption(assumption, markersLayer)
-                list+=markedLink[1]
-                markers.push markedLink[0]
+                list += '<br>'
+                markedLink = @_linkAssumption(assumption, markersLayer, issue.referenceKey)
+                list += markedLink[1]
 
-            message += @_wrapTag list, 'small'
+            message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.referenceKey)
 
-        return [markers, message]
+        return message
 
-    _linkAssumption: (assumption, markersLayer)->
+    _linkAssumption: (assumption, markersLayer, bundleId)->
 
         dir = path.dirname markersLayer.editor.getPath()
         file = path.join dir, assumption.file #TODO: make properly relative
 
         marker = markersLayer.markLinkTargetRange(
             assumption.referenceKey+'-lnk',
-            assumption.textRange, assumption.message)
+            assumption.textRange,
+            assumption.message,
+            bundleId)
 
 
         message = ''
-        message += @_wrapTag '', 'span', @_wrapAttr('id', 'kt-location')
+        message += Htmler.wrapTag(
+            Htmler.rangeToHtml(marker.getBufferRange())
+            'a'
+            Htmler.wrapAttr('id', 'kt-location')
+        )
+
         message += '&nbsp;&nbsp;'+assumption.message
-        message += ' line:' + (parseInt(assumption.textRange[0][0])+1)
-        message += ' col:' + assumption.textRange[0][1]
+        # message += ' line:' + (parseInt(assumption.textRange[0][0])+1)
+        # message += ' col:' + assumption.textRange[0][1]
 
 
         list=''
         attrs = ' '
-        attrs += @_wrapAttr('href', '#')
-        attrs += @_wrapAttr('id', 'kt-assumption-link-src')
-        attrs += @_wrapAttr('data-marker-id', assumption.referenceKey)
-        # attrs += @_wrapAttr('class', 'kt-assumption-link-src kt-assumption-'+marker.id)
-        attrs += @_wrapAttr('line', assumption.textRange[0][0])
-        attrs += @_wrapAttr('col', assumption.textRange[0][1])
-        attrs += @_wrapAttr('uri', file)
+        # attrs += Htmler.wrapAttr('href', '#')
+        attrs += Htmler.wrapAttr('id', 'kt-assumption-link-src')
+        attrs += Htmler.wrapAttr('data-marker-id', assumption.referenceKey)
+        # attrs += Htmler.wrapAttr('class', 'kt-assumption-link-src kt-assumption-'+marker.id)
+        attrs += Htmler.wrapAttr('line', assumption.textRange[0][0])
+        attrs += Htmler.wrapAttr('col', assumption.textRange[0][1])
+        attrs += Htmler.wrapAttr('uri', file)
 
-        list += @_wrapTag message, 'a', attrs
+        list += Htmler.wrapTag message, 'span', attrs
 
         return [marker.id, list]
 
-    _wrapAttr: (attr, val) -> attr + '="' + val + '"'+' '
-
-    _wrapTag: (str, tag, attr) ->
-        attrAdd = ' '+attr
-        if not attr?
-            attrAdd = ''
-
-        '<' + tag + attrAdd + '>' + str + '</' + tag + '>'
-
-    _bage:(clazz, body) ->
-        '<span class="badge badge-flexible linter-highlight ' + clazz + '">' + body + '</span>'
-
-    _log: (msgs...) ->
-        if (msgs.length > 0)
-            prefix = 'kt-advance scanner: '
-            console.log prefix + msgs.join(' ')
-
-    _warn: (msgs...) ->
-        if (msgs.length > 0)
-            prefix = 'kt-advance scanner: '
-            console.warn prefix + msgs.join(' ')
 
 module.exports = KtAdvanceScanner

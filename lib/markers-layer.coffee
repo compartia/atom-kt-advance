@@ -1,5 +1,10 @@
-
+Logger = require './logger'
+Htmler = require './html-helper'
+### Manages per-editor message markers and decorations ###
 class KtAdvanceMarkersLayer
+
+    markerLayer:null
+
 
     constructor: (editor) ->
         @editor=editor
@@ -9,35 +14,24 @@ class KtAdvanceMarkersLayer
         @markersByReferenceKey={}
         @_addMarkerLayer(editor)
 
-        ##
-        # listen to Bubble. When bubble is up, update DOM after some timeout
-        # TODO : this is a dirty hack
-        @editor.onDidAddDecoration (decoration) =>
-            if decoration.properties.type=='overlay'
-                el = decoration.properties.item
-                if el? and el.querySelector?
-                    setTimeout( =>
-                        @updateAssumptionsLinks(el)
-                    , 250)
-        #TODO: remove magic 250, use @bubbleInterval x 2 from Linter config
-        #TODO: for unknown reason, bubbleInterval isn't available at this moment
 
-
-    putMessage: (referenceKey, message)->
-        # console.warn "put msg:" + referenceKey
-        @messageByKey[referenceKey]=message
+    putMessage: (referenceKey, message) ->
+        @messageByKey[referenceKey] = message
         marker = @_markMsgRange (message)
         @messageKeyByMarker[marker.id] = referenceKey
         @markersByReferenceKey[referenceKey] = marker
         return marker
 
-    markLinkTargetRange: (refKey, range, txt) ->
+    ### adds a marker and a decoraion to where an assumption points to
+    TODO: add a tooltip (overlay) with description
+    ###
+    markLinkTargetRange: (refKey, range, txt, bundleId) ->
         marker = @markersByReferenceKey[refKey]
         if not marker?
             marker = @markerLayer.markBufferRange(range)
             @markersByReferenceKey[refKey] = marker
             marker.onDidChange (event) =>
-                @updateLinks(marker.id)
+                @updateLinks(bundleId)
 
             decorationParams = {
                 type: 'highlight'
@@ -58,14 +52,12 @@ class KtAdvanceMarkersLayer
             referenceKey = @messageKeyByMarker[marker.id]
             msg = @messageByKey[referenceKey]
             msg.range = marker.getBufferRange()
-            # console.error msg.type+":"+marker.getBufferRange()
-            # +":"+msg.range
+            # TODO: update linter UI, rendered messages
 
         @markers.push marker
         return marker
 
     getMarkerRange: (referenceKey, fallbackRange) ->
-        # console.error marker
         marker = @markersByReferenceKey[referenceKey]
 
         if marker
@@ -83,13 +75,8 @@ class KtAdvanceMarkersLayer
         else
             @markerLayer = textEditor
 
-    navigate:(markerId, fileLink)->
-        options = {
-            initialLine: parseInt(fileLink.row)
-            initialColumn: parseInt(fileLink.col)
-        }
-        atom.workspace.open(fileLink.file, options)
 
+    ### called when bubble shown ###
     updateAssumptionsLinks: (el) ->
         Promise.resolve(el).then (value) =>
 
@@ -102,36 +89,50 @@ class KtAdvanceMarkersLayer
         return
 
     _updateAssumptionsLineNumber:(link)->
-        refId = link.getAttribute('data-marker-id')+'-lnk'
+        refId = link.getAttribute('data-marker-id') + '-lnk'
         range = @getMarkerRange(refId)
 
         el= link.querySelector("#kt-location")
-        el.innerHTML = 'line:'+(range.start.row+1)+' col:'+range.start.column
-        file = link.getAttribute('uri')
-        link.onclick = () =>
-            options = {
-                initialLine: range.start.row
-                initialColumn: range.start.column
-            }
-            atom.workspace.open(file, options)
+        if el
+            el.innerHTML = Htmler.rangeToHtml(range)
+            file = link.getAttribute('uri')
+            link.onclick = () ->
+                options = {
+                    initialLine: range.start.row
+                    initialColumn: range.start.column
+                }
+                atom.workspace.open file, options
 
         return el
 
+
+
     # not in use
     # deprecated
-    updateLinks: (markerId) ->
-        className='kt-assumption-'+markerId
+    updateLinks: (bundleId) ->
+
+        className='links-'+bundleId
         assumptionLinks = document.getElementsByClassName(className)
+
+
         for lnk in assumptionLinks
-            fileLink={
-                row:lnk.getAttribute('line')
-                col:lnk.getAttribute('col')
-                file:lnk.getAttribute('uri')
-            }
-            lnk.onclick = ()=>
-                @navigate(markerId, fileLink)
+            @updateAssumptionsLinks(lnk)
+            # fileLink={
+            #     row:lnk.getAttribute('line')
+            #     col:lnk.getAttribute('col')
+            #     file:lnk.getAttribute('uri')
+            # }
+            # lnk.onclick = ()=>
+            #     @navigate(markerId, fileLink)
 
         # TODO write this method
+
+    navigate:(markerId, fileLink)->
+        options = {
+            initialLine: parseInt(fileLink.row)
+            initialColumn: parseInt(fileLink.col)
+        }
+        atom.workspace.open(fileLink.file, options)
 
     makeAssumptionDescr: (message)->
         el = document.createElement('linter-message')
