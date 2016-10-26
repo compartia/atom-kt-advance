@@ -94,6 +94,30 @@ atom-text-editor::shadow .linter-highlight {
         }
     }
 
+    &.obsolete {
+        &:not(.line-number) {
+            background-color: @background-color-level;
+            color: white;
+        }
+
+        .linter-gutter {
+            color: @background-color-level;
+        }
+
+        .region {
+            border-bottom: 1px dashed @background-color-level;
+        }
+    }
+
+
+    &.crossed {
+        &:not(.line-number) {
+            text-decoration: line-through!important;
+        }
+    }
+
+
+
     &.open {
         &:not(.line-number) {
             background-color: @background-color-warning;

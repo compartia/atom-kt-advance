@@ -1,13 +1,15 @@
 {BufferedProcess} = require 'atom'
 path = require 'path'
 
+VERSION = "5.5.6"
+
 
 class KtAdvanceJarExecutor
 
     locateJar: ->
         file = atom.packages.resolvePackagePath ('atom-kt-advance')
         if file?
-            file = path.join file, 'lib', 'json-kt-advance-5.5.5-jar-with-dependencies.jar'
+            file = path.join file, 'lib', 'json-kt-advance-'+VERSION+'-jar-with-dependencies.jar'
 
 
 
@@ -62,4 +64,4 @@ class KtAdvanceJarExecutor
             prefix = 'kt-advance jar: '
             console.warn prefix + msgs.join(' ')
 
-module.exports = KtAdvanceJarExecutor
+module.exports = {KtAdvanceJarExecutor,VERSION}

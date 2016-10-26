@@ -16,7 +16,8 @@
     },
 
     "dependencies": {
-        "atom-package-deps": "^2.0.3"
+        "atom-package-deps": "^2.0.3",
+        "moment": "2.15.2"
     },
 
     "providedServices": {

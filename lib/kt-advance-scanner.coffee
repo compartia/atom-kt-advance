@@ -1,14 +1,19 @@
-KT_JSON_DIR='kt_analysis_export'
+
 
 Logger = require './logger'
 
 {File, CompositeDisposable} = require 'atom'
 fs = require 'fs'
 path = require 'path'
+moment= require 'moment'
 
-KtAdvanceJarExecutor = require './jar-exec'
+{KtAdvanceJarExecutor,VERSION} = require './jar-exec'
+
 KtAdvanceMarkersLayer = require './markers-layer'
 Htmler = require './html-helper'
+
+
+KT_JSON_DIR='kt_analysis_export_'+VERSION
 
 class KtAdvanceScanner
 
@@ -106,31 +111,46 @@ class KtAdvanceScanner
 
     parseJson :(textEditor) ->
         jsonPath = @getJsonPath(textEditor)
-        messages = []
-
         json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
+
         data = JSON.parse(json)
 
-        issuesByRegions = data.posByKey
+
 
         markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
-        messages = @collectMesages(issuesByRegions, textEditor.getPath(), markersLayer)
+        messages = @collectMesages(data, textEditor.getPath(), markersLayer)
 
         return messages
 
 
-    collectMesages:(issuesByRegions, filePath, markersLayer) ->
+    collectMesages:(data, filePath, markersLayer) ->
+
+        issuesByRegions = data.posByKey.map
+
+
+        file=new File(filePath)
+        digest1 =  file.getDigestSync()
+        digest2 =  data.header.digest
+        Logger.log digest1, ' vs ', digest2
+
+        stats = fs.statSync(filePath)
+        mtime = moment(stats.mtime)
+        # console.log(mtime)
+
         messages = []
         # i=0;
         for key, issues of issuesByRegions
             if issues?
-                collapsed = @collapseIssues(issues, markersLayer)
+                obsolete = (digest1!=digest2)
+                collapsed = @collapseIssues(issues, markersLayer, obsolete)
+
                 # i++
                 msg = {
                     type: collapsed.state
                     filePath: filePath
                     range: collapsed.textRange
                     html: collapsed.message
+                    time: collapsed.time
                     # linkedMarkerIds: collapsed.linkedMarkerIds
                     # ktId: i
                 }
@@ -142,12 +162,12 @@ class KtAdvanceScanner
         return messages
 
 
-    collapseIssues:(issues, markersLayer) ->
+    collapseIssues:(issues, markersLayer, obsolete) ->
         txt=''
         state = if issues.length>1 then 'multiple' else issues[0].state
         i=0
         for issue in issues
-            markedLinks=@issueToString(issue, issues.length>1, markersLayer)
+            markedLinks=@issueToString(issue, issues.length>1, markersLayer, obsolete)
 
             txt += markedLinks
             i++
@@ -156,21 +176,30 @@ class KtAdvanceScanner
 
         return {
             message:txt
-            state:state
+            state: if obsolete then 'obsolete' else state
+            time: moment(issues[0].time)
+            #XXX: per issue time!! or use minimal
             # linkedMarkerIds:markers
             #they all have same text range, so just take 1st
             textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
         }
 
 
-    issueToString:(issue, addState, markersLayer)->
+    issueToString:(issue, addState, markersLayer, obsolete)->
         message = ''
-        if addState
-            message += Htmler.bage(issue.state.toLowerCase(), issue.state) + ' '
-        message += Htmler.bage('level', issue.level) + ' '
+        attrs = ''
+
+        attrs += Htmler.wrapAttr('data-marker-id', issue.referenceKey)
+        # attrs += Htmler.wrapAttr('data-time', issue.time)
+        styleAddon = if obsolete then ' crossed' else ''
+        if addState or obsolete
+            message += Htmler.bage(issue.state.toLowerCase()+styleAddon, issue.state) + ' '
+        # message += Htmler.bage('obsolete', 'obsolete') + ' '
+        levelBageStyle='level'+ styleAddon
+        message += Htmler.bage(levelBageStyle, issue.level) + ' '
         message += Htmler.bage(issue.state.toLowerCase(), issue.predicateType) + ' '
         message += issue.shortDescription
-        message += Htmler.wrapTag '', 'span', Htmler.wrapAttr('data-marker-id', issue.referenceKey)
+        message += Htmler.wrapTag '', 'span', attrs
 
         markedLinks= @_assumptionsToString(issue, markersLayer)
         message += markedLinks
