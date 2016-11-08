@@ -22,6 +22,8 @@ class KtAdvanceScanner
     registry: null
     executor: null
 
+    messagesByFile:{}
+
 
     constructor: (_registry) ->
         console.log 'contructing kt-scanner'
@@ -72,16 +74,27 @@ class KtAdvanceScanner
             @_submitMessages(value, textEditor)
 
     ### Sends issue-related messages into linter interface ###
-    _submitMessages: (messages, textEditor) ->
+    _submitMessages: (fileMessages, textEditor) ->
+        @messagesByFile[textEditor.getPath()] = fileMessages;
+        messages = @_unwrapMessages()
+
         if not @indieLinter?
             console.warn 'scannning before linter is ready!'
         else
-            console.log 'messages:', messages.length
+            console.log 'messages (total):' + messages.length + "; in file: "+fileMessages.length
             if messages.length is 0
                 @indieLinter.deleteMessages()
                 return
-            @indieLinter.setMessages(messages)
+            @indieLinter.setMessages(@_unwrapMessages(@messagesByFile))
 
+
+    _unwrapMessages: () ->
+        messages=[]
+        for fileName, msgs of @messagesByFile
+            for msg in msgs
+                messages.push(msg)
+
+        return messages
     ###
         Tests if a file Ok to analyse. File should be c or cpp.
         deprecated: should be replaced with some Atom aout-of-the box func.
