@@ -176,7 +176,7 @@ class KtAdvanceScanner
                 if obsolete
                     console.log 'file digest differs: ' + digest1 + ' vs ' + digest2
 
-                #in case there are severla messages bound to the same region,
+                #in case there are several messages bound to the same region,
                 #linter cannot display all of them in a pop-up bubble, so we
                 #have to aggregate multiple messages into single one
                 collapsed = @collapseIssues(issues, markersLayer, obsolete)
@@ -187,7 +187,6 @@ class KtAdvanceScanner
                     range: collapsed.textRange
                     html: collapsed.message
                     time: collapsed.time
-                    # trace: collapsed.assumptions
                 }
 
                 for issue in issues
@@ -198,6 +197,10 @@ class KtAdvanceScanner
         return messages
 
 
+    ###
+        in case there are several messages bound to the same region,
+        linter cannot display all of them in a pop-up bubble, so we
+        have to aggregate multiple messages into single one ###
     collapseIssues:(issues, markersLayer, obsolete) ->
         txt=''
         state = if issues.length>1 then 'multiple' else issues[0].state
@@ -218,64 +221,15 @@ class KtAdvanceScanner
             message:txt
             state: if obsolete then 'obsolete' else state
             time: moment(issues[0].time)
-            # assumptions: assumptions
             #XXX: per issue time!! or use minimal
             # linkedMarkerIds:markers
             #they all have same text range, so just take 1st
             textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
-            assumptions: @assumptionsToTraces(issues[0], markersLayer)
         }
 
-        collapseIssues:(issues, markersLayer, obsolete) ->
-            txt=''
-            state = if issues.length>1 then 'multiple' else issues[0].state
-            i=0
-            for issue in issues
-                markedLinks = @issueToString(
-                    issue
-                    issues.length>1 #addState
-                    markersLayer
-                    obsolete)
-
-                txt += markedLinks
-                i++
-                if i<issues.length
-                    txt += '<hr class="issue-split">'
-
-            return {
-                message:txt
-                state: if obsolete then 'obsolete' else state
-                time: moment(issues[0].time)
-                # assumptions: assumptions
-                #XXX: per issue time!! or use minimal
-                # linkedMarkerIds:markers
-                #they all have same text range, so just take 1st
-                textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
-                assumptions: @assumptionsToTraces(issues[0], markersLayer)
-            }
-
-    assumptionsToTraces: (issue , markersLayer)->
-        traces=[]
-        references = issue.references
-        message = ''
-        dir = path.dirname markersLayer.editor.getPath()
-
-        if references? and references.length > 0
-
-            for assumption in references
-                markedLink = @_linkAssumption(assumption, markersLayer, issue.referenceKey)
-                file = path.join dir, assumption.file #TODO: make properly relative
-
-                traces.push {
-                    type: 'trace'
-                    name: 'assumption'
-                    filePath: file
-                    range: markersLayer.getMarkerRange(assumption.referenceKey, assumption.textRange)
-                    html: assumption.message
-                }
 
 
-        return traces
+
 
 
     issueToString:(issue, addState, markersLayer, obsolete)->
