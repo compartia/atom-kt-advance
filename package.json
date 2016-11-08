@@ -28,6 +28,14 @@
         }
     },
 
+    "consumedServices": {
+        "linter-indie": {
+            "versions": {
+                "1.0.0": "consumeLinter"
+            }
+        }
+    },
+
     "package-deps": [
         "linter"
     ]

@@ -1,4 +1,4 @@
-{File} = require 'atom'
+{File, CompositeDisposable} = require 'atom'
 
 fs = require 'fs'
 path = require 'path'
@@ -22,11 +22,26 @@ class KtAdvanceScanner
     registry: null
     executor: null
 
+    messagesByFile:{}
+
+    violationsOnly: false
+
 
     constructor: (_registry) ->
         console.log 'contructing kt-scanner'
         @registry = _registry
         @executor = new KtAdvanceJarExecutor()
+
+        @subscriptions = new CompositeDisposable
+        @subscriptions.add(
+            atom.config.observe 'atom-kt-advance.violationsOnly',
+                (newValue) => (
+                    @violationsOnly = newValue
+                    console.log 'violationsOnly has changed:' + @violationsOnly
+                )
+
+        )
+
 
 
     findKtAlaysisDirLocation:(textEditor) ->
@@ -72,17 +87,27 @@ class KtAdvanceScanner
             @_submitMessages(value, textEditor)
 
     ### Sends issue-related messages into linter interface ###
-    _submitMessages:(messages, textEditor)->
-        Promise.resolve(@indieLinter).then(linter) ->
-            if not linter?
-                console.error 'scannning before linter is ready!'
-            else
-                console.log 'messages:', messages.length
-                if messages.length is 0
-                    linter.deleteMessages()
-                    return
-                linter.setMessages(messages)
+    _submitMessages: (fileMessages, textEditor) ->
+        @messagesByFile[textEditor.getPath()] = fileMessages
+        messages = @_unwrapMessages()
 
+        if not @indieLinter?
+            console.warn 'scannning before linter is ready!'
+        else
+            console.log 'messages (total):' + messages.length + "; in file: "+fileMessages.length
+            if messages.length is 0
+                @indieLinter.deleteMessages()
+                return
+            @indieLinter.setMessages(@_unwrapMessages(@messagesByFile))
+
+
+    _unwrapMessages: () ->
+        messages=[]
+        for fileName, msgs of @messagesByFile
+            for msg in msgs
+                messages.push(msg)
+
+        return messages
     ###
         Tests if a file Ok to analyse. File should be c or cpp.
         deprecated: should be replaced with some Atom aout-of-the box func.
@@ -93,21 +118,21 @@ class KtAdvanceScanner
 
     makeErrorMessage: (error, filePath) ->
         result = []
-        console.error(error.message)
-        console.error(error.stack)
         result.push({
             lineNumber: 1
             filePath: filePath
             type: 'error'
-            text: "process crashed, see console for error details."
+            text: "process crashed, see console for error details. "+error.message
         })
         return result
 
     ## @Overrides
     lint: (textEditor) ->
-        # do nothing, because this is async indie linter
-        #we  have own onSave listener.
-        return @_lint(textEditor)
+        @_submitMessages @_lint(textEditor), textEditor
+
+        # return nothing, because this is async indie linter
+        # we submit messages via linter interface
+        return []
 
     _lint: (textEditor) =>
         filePath = textEditor.getPath()
@@ -131,6 +156,8 @@ class KtAdvanceScanner
                     return @parseJson(textEditor, jsonPath)
 
             catch e
+                console.error(e.message)
+                console.error(e.stack)
                 return @makeErrorMessage(e, filePath)
 
 
@@ -150,23 +177,40 @@ class KtAdvanceScanner
             return messages
 
         catch e
+            console.error (e.message)
+            console.error (e.stack)
             return @makeErrorMessage(e, textEditor.getPath())
 
 
 
+    filterIssues:(issuesByRegions) ->
+        filtered={}
+        for key, issues of issuesByRegions
+
+            byRegFiltered = []
+            for issue in issues
+                if 'VIOLATION' == issue.state or !@violationsOnly
+                    byRegFiltered.push issue
+
+            if byRegFiltered.length>0
+                filtered[key]=byRegFiltered
+
+        return filtered
+
+
     collectMesages:(data, filePath, markersLayer) ->
 
-        issuesByRegions = data.posByKey.map
+        issuesByRegions = @filterIssues data.posByKey.map
 
 
         file=new File(filePath)
         digest1 =  file.getDigestSync()
         digest2 =  data.header.digest
 
-
-        stats = fs.statSync(filePath)
-        mtime = moment(stats.mtime)
-        # console.log(mtime)
+        #
+        # stats = fs.statSync(filePath)
+        # mtime = moment(stats.mtime)
+        # # console.log(mtime)
 
         messages = []
         # i=0;
@@ -175,32 +219,42 @@ class KtAdvanceScanner
                 obsolete = (digest1!=digest2)
                 if obsolete
                     console.log 'file digest differs: ' + digest1 + ' vs ' + digest2
+
+                #in case there are several messages bound to the same region,
+                #linter cannot display all of them in a pop-up bubble, so we
+                #have to aggregate multiple messages into single one
                 collapsed = @collapseIssues(issues, markersLayer, obsolete)
 
-                # i++
                 msg = {
                     type: collapsed.state
                     filePath: filePath
                     range: collapsed.textRange
                     html: collapsed.message
                     time: collapsed.time
-                    # linkedMarkerIds: collapsed.linkedMarkerIds
-                    # ktId: i
                 }
 
                 for issue in issues
                     markersLayer.putMessage issue.referenceKey, msg
 
                 messages.push(msg)
+
         return messages
 
 
+    ###
+        in case there are several messages bound to the same region,
+        linter cannot display all of them in a pop-up bubble, so we
+        have to aggregate multiple messages into single one ###
     collapseIssues:(issues, markersLayer, obsolete) ->
         txt=''
         state = if issues.length>1 then 'multiple' else issues[0].state
         i=0
         for issue in issues
-            markedLinks=@issueToString(issue, issues.length>1, markersLayer, obsolete)
+            markedLinks = @issueToString(
+                issue
+                issues.length>1 #addState
+                markersLayer
+                obsolete)
 
             txt += markedLinks
             i++
@@ -210,12 +264,17 @@ class KtAdvanceScanner
         return {
             message:txt
             state: if obsolete then 'obsolete' else state
-            time: moment(issues[0].time)
+            # 05/31/2016 16:55:52
+            time: moment(issues[0].time,  "MM/DD/YYYY HH:mm:ss")
             #XXX: per issue time!! or use minimal
             # linkedMarkerIds:markers
             #they all have same text range, so just take 1st
             textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
         }
+
+
+
+
 
 
     issueToString:(issue, addState, markersLayer, obsolete)->

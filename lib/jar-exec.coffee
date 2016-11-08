@@ -1,10 +1,22 @@
-{BufferedProcess} = require 'atom'
+{BufferedProcess, CompositeDisposable} = require 'atom'
 path = require 'path'
 
 VERSION = "5.5.6"
 
 
 class KtAdvanceJarExecutor
+    javaExecutablePath: ''
+    constructor: ->
+
+        @subscriptions = new CompositeDisposable
+        @subscriptions.add(
+            atom.config.observe 'atom-kt-advance.javaPath',
+                (newValue) => (
+                    @javaExecutablePath = newValue.trim()
+                    console.log 'javaExecutablePath has changed:' + @javaExecutablePath
+                )
+
+        )
 
     locateJar: ->
         file = atom.packages.resolvePackagePath ('atom-kt-advance')
@@ -19,7 +31,7 @@ class KtAdvanceJarExecutor
 
         console.log  'running: ' + userDir + ' json:' + jsonPath
 
-        command = 'java'
+        command = @javaExecutablePath
         args = ['-jar', jarPath, userDir, textEditor.getPath()]
 
 
