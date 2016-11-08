@@ -23,7 +23,7 @@ module.exports =
 
     activate: (state) ->
 
-        KtAdvanceScanner = require './kt-advance-scanner'
+        KtAdvanceScanner = require './scanner'
         KtEditorsRegistry = require './editors-reg'
 
         # state-object as preparation for user-notifications
