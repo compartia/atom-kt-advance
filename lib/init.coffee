@@ -13,6 +13,11 @@ module.exports =
             title: 'Verbose logging'
             type: 'boolean'
 
+    maybeScan:(textEditor) ->
+       if @scanner.accept textEditor.getPath()
+           @reg.addEditor(textEditor)
+           @scanner.scan textEditor
+
     deactivate: ->
         @subscriptions.dispose()
 
@@ -50,12 +55,9 @@ module.exports =
 
         @subscriptions.add(
             atom.workspace.observeTextEditors (textEditor) => (
-                if @scanner.accept textEditor.getPath()
-                    @reg.addEditor(textEditor)
+                @maybeScan textEditor
             )
         )
-
-
 
 
     toggle: ->
@@ -63,3 +65,26 @@ module.exports =
 
 
     provideLinter: -> @scanner
+
+    consumeLinter: (registry) ->
+        console.log 'Attempting to register an indie linter'
+        atom.packages.activate('linter').then =>
+            module =atom.packages.getLoadedPackage('linter').mainModule
+            indieRegistry = module.provideIndie()
+            reg = module.provideLinter()
+
+            # HACK because of bug in `linter` package
+            indieRegistry.emit = registry.emitter.emit.bind(registry.emitter)
+
+            linter = indieRegistry.register {name: 'KT-Advance'}
+            # @pullRequestLinter.setLinter(linter)
+            @subscriptions.add(linter)
+
+
+            Promise.resolve(linter).then (value) =>
+                console.log 'indie linter is ready'
+                @scanner.setLinter(linter)
+                # console.log atom.textEditors.editors
+                atom.textEditors.editors.forEach (textEditor) =>
+                    console.log 'currently open: '+textEditor.getPath()
+                    @maybeScan textEditor

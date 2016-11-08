@@ -72,16 +72,15 @@ class KtAdvanceScanner
             @_submitMessages(value, textEditor)
 
     ### Sends issue-related messages into linter interface ###
-    _submitMessages:(messages, textEditor)->
-        Promise.resolve(@indieLinter).then(linter) ->
-            if not linter?
-                console.error 'scannning before linter is ready!'
-            else
-                console.log 'messages:', messages.length
-                if messages.length is 0
-                    linter.deleteMessages()
-                    return
-                linter.setMessages(messages)
+    _submitMessages: (messages, textEditor) ->
+        if not @indieLinter?
+            console.warn 'scannning before linter is ready!'
+        else
+            console.log 'messages:', messages.length
+            if messages.length is 0
+                @indieLinter.deleteMessages()
+                return
+            @indieLinter.setMessages(messages)
 
     ###
         Tests if a file Ok to analyse. File should be c or cpp.
@@ -93,21 +92,21 @@ class KtAdvanceScanner
 
     makeErrorMessage: (error, filePath) ->
         result = []
-        console.error(error.message)
-        console.error(error.stack)
         result.push({
             lineNumber: 1
             filePath: filePath
             type: 'error'
-            text: "process crashed, see console for error details."
+            text: "process crashed, see console for error details. "+error.message
         })
         return result
 
     ## @Overrides
     lint: (textEditor) ->
-        # do nothing, because this is async indie linter
-        #we  have own onSave listener.
-        return @_lint(textEditor)
+        @_submitMessages @_lint(textEditor), textEditor
+
+        # return nothing, because this is async indie linter
+        # we submit messages via linter interface
+        return []
 
     _lint: (textEditor) =>
         filePath = textEditor.getPath()
@@ -131,6 +130,8 @@ class KtAdvanceScanner
                     return @parseJson(textEditor, jsonPath)
 
             catch e
+                console.error(e.message)
+                console.error(e.stack)
                 return @makeErrorMessage(e, filePath)
 
 
@@ -150,6 +151,8 @@ class KtAdvanceScanner
             return messages
 
         catch e
+            console.error (e.message)
+            console.error (e.stack)
             return @makeErrorMessage(e, textEditor.getPath())
 
 
@@ -220,7 +223,8 @@ class KtAdvanceScanner
         return {
             message:txt
             state: if obsolete then 'obsolete' else state
-            time: moment(issues[0].time)
+            # 05/31/2016 16:55:52
+            time: moment(issues[0].time,  "MM/DD/YYYY HH:mm:ss")
             #XXX: per issue time!! or use minimal
             # linkedMarkerIds:markers
             #they all have same text range, so just take 1st
