@@ -4,6 +4,8 @@
 // for a full listing of what's available.
 @import "ui-variables";
 
+@background-color-assumption: #1166cc;
+@fg-color-assumption: #ffffff;
 @background-color-error-multiple: #ff9933;
 @background-color-error: #dd1133;
 @background-color-warning: #f2be55;
@@ -91,6 +93,22 @@ atom-text-editor::shadow .linter-highlight {
 
         .region {
             border-bottom: 1px dashed @background-color-level;
+        }
+    }
+
+
+    &.assumption {
+        &:not(.line-number) {
+            background-color: @background-color-assumption;
+            color: @fg-color-assumption;
+        }
+
+        .linter-gutter {
+            color: @background-color-assumption;
+        }
+
+        .region {
+            border-bottom: 1px dashed @background-color-assumption;
         }
     }
 

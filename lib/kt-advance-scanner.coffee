@@ -187,7 +187,7 @@ class KtAdvanceScanner
                     range: collapsed.textRange
                     html: collapsed.message
                     time: collapsed.time
-                    # trace: collapsed.assumptions
+                    trace: collapsed.assumptions
                 }
 
                 for issue in issues
@@ -226,34 +226,6 @@ class KtAdvanceScanner
             assumptions: @assumptionsToTraces(issues[0], markersLayer)
         }
 
-        collapseIssues:(issues, markersLayer, obsolete) ->
-            txt=''
-            state = if issues.length>1 then 'multiple' else issues[0].state
-            i=0
-            for issue in issues
-                markedLinks = @issueToString(
-                    issue
-                    issues.length>1 #addState
-                    markersLayer
-                    obsolete)
-
-                txt += markedLinks
-                i++
-                if i<issues.length
-                    txt += '<hr class="issue-split">'
-
-            return {
-                message:txt
-                state: if obsolete then 'obsolete' else state
-                time: moment(issues[0].time)
-                # assumptions: assumptions
-                #XXX: per issue time!! or use minimal
-                # linkedMarkerIds:markers
-                #they all have same text range, so just take 1st
-                textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
-                assumptions: @assumptionsToTraces(issues[0], markersLayer)
-            }
-
     assumptionsToTraces: (issue , markersLayer)->
         traces=[]
         references = issue.references
@@ -263,12 +235,11 @@ class KtAdvanceScanner
         if references? and references.length > 0
 
             for assumption in references
-                markedLink = @_linkAssumption(assumption, markersLayer, issue.referenceKey)
+                @_linkAssumption(assumption, markersLayer, issue.referenceKey)
                 file = path.join dir, assumption.file #TODO: make properly relative
 
                 traces.push {
-                    type: 'trace'
-                    name: 'assumption'
+                    type: 'assumption'
                     filePath: file
                     range: markersLayer.getMarkerRange(assumption.referenceKey, assumption.textRange)
                     html: assumption.message
@@ -294,27 +265,9 @@ class KtAdvanceScanner
         message += issue.shortDescription
         message += Htmler.wrapTag '', 'span', attrs
 
-        markedLinks= @_assumptionsToString(issue, markersLayer)
-        message += markedLinks
-
         return message
 
-    _assumptionsToString: (issue , markersLayer)->
-        references = issue.references
-        message = ''
-        if references? and references.length > 0
-            message +='<hr class="issue-split">'
-            message +=('assumptions: ' + references.length)
 
-            list=''
-            for assumption in references
-                list += '<br>'
-                markedLink = @_linkAssumption(assumption, markersLayer, issue.referenceKey)
-                list += markedLink[1]
-
-            message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.referenceKey)
-
-        return message
 
     _linkAssumption: (assumption, markersLayer, bundleId)->
 
@@ -325,34 +278,7 @@ class KtAdvanceScanner
             assumption.referenceKey+'-lnk',
             assumption.textRange,
             assumption.message,
-            bundleId)
-
-
-        message = ''
-        message += Htmler.wrapTag(
-            Htmler.rangeToHtml(marker.getBufferRange())
-            'a'
-            Htmler.wrapAttr('id', 'kt-location')
-        )
-
-        message += '&nbsp;&nbsp;'+assumption.message
-        # message += ' line:' + (parseInt(assumption.textRange[0][0])+1)
-        # message += ' col:' + assumption.textRange[0][1]
-
-
-        list=''
-        attrs = ' '
-        # attrs += Htmler.wrapAttr('href', '#')
-        attrs += Htmler.wrapAttr('id', 'kt-assumption-link-src')
-        attrs += Htmler.wrapAttr('data-marker-id', assumption.referenceKey)
-        # attrs += Htmler.wrapAttr('class', 'kt-assumption-link-src kt-assumption-'+marker.id)
-        attrs += Htmler.wrapAttr('line', assumption.textRange[0][0])
-        attrs += Htmler.wrapAttr('col', assumption.textRange[0][1])
-        attrs += Htmler.wrapAttr('uri', file)
-
-        list += Htmler.wrapTag message, 'span', attrs
-
-        return [marker.id, list]
+            bundleId)         
 
 
 module.exports = KtAdvanceScanner
