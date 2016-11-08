@@ -81,8 +81,6 @@ class KtAdvanceMarkersLayer
 
         Promise.resolve(el).then (value) =>
             links = value.querySelectorAll("#kt-assumption-link-src")
-            console.error  links
-
             if links?
                 for link in links
                     @_updateAssumptionsLineNumber(link)

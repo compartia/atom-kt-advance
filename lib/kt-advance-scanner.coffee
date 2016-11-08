@@ -163,10 +163,10 @@ class KtAdvanceScanner
         digest1 =  file.getDigestSync()
         digest2 =  data.header.digest
 
-
-        stats = fs.statSync(filePath)
-        mtime = moment(stats.mtime)
-        # console.log(mtime)
+        #
+        # stats = fs.statSync(filePath)
+        # mtime = moment(stats.mtime)
+        # # console.log(mtime)
 
         messages = []
         # i=0;
@@ -175,23 +175,26 @@ class KtAdvanceScanner
                 obsolete = (digest1!=digest2)
                 if obsolete
                     console.log 'file digest differs: ' + digest1 + ' vs ' + digest2
+
+                #in case there are severla messages bound to the same region,
+                #linter cannot display all of them in a pop-up bubble, so we
+                #have to aggregate multiple messages into single one
                 collapsed = @collapseIssues(issues, markersLayer, obsolete)
 
-                # i++
                 msg = {
                     type: collapsed.state
                     filePath: filePath
                     range: collapsed.textRange
                     html: collapsed.message
                     time: collapsed.time
-                    # linkedMarkerIds: collapsed.linkedMarkerIds
-                    # ktId: i
+                    # trace: collapsed.assumptions
                 }
 
                 for issue in issues
                     markersLayer.putMessage issue.referenceKey, msg
 
                 messages.push(msg)
+
         return messages
 
 
@@ -200,7 +203,11 @@ class KtAdvanceScanner
         state = if issues.length>1 then 'multiple' else issues[0].state
         i=0
         for issue in issues
-            markedLinks=@issueToString(issue, issues.length>1, markersLayer, obsolete)
+            markedLinks = @issueToString(
+                issue
+                issues.length>1 #addState
+                markersLayer
+                obsolete)
 
             txt += markedLinks
             i++
@@ -211,11 +218,64 @@ class KtAdvanceScanner
             message:txt
             state: if obsolete then 'obsolete' else state
             time: moment(issues[0].time)
+            # assumptions: assumptions
             #XXX: per issue time!! or use minimal
             # linkedMarkerIds:markers
             #they all have same text range, so just take 1st
             textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
+            assumptions: @assumptionsToTraces(issues[0], markersLayer)
         }
+
+        collapseIssues:(issues, markersLayer, obsolete) ->
+            txt=''
+            state = if issues.length>1 then 'multiple' else issues[0].state
+            i=0
+            for issue in issues
+                markedLinks = @issueToString(
+                    issue
+                    issues.length>1 #addState
+                    markersLayer
+                    obsolete)
+
+                txt += markedLinks
+                i++
+                if i<issues.length
+                    txt += '<hr class="issue-split">'
+
+            return {
+                message:txt
+                state: if obsolete then 'obsolete' else state
+                time: moment(issues[0].time)
+                # assumptions: assumptions
+                #XXX: per issue time!! or use minimal
+                # linkedMarkerIds:markers
+                #they all have same text range, so just take 1st
+                textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
+                assumptions: @assumptionsToTraces(issues[0], markersLayer)
+            }
+
+    assumptionsToTraces: (issue , markersLayer)->
+        traces=[]
+        references = issue.references
+        message = ''
+        dir = path.dirname markersLayer.editor.getPath()
+
+        if references? and references.length > 0
+
+            for assumption in references
+                markedLink = @_linkAssumption(assumption, markersLayer, issue.referenceKey)
+                file = path.join dir, assumption.file #TODO: make properly relative
+
+                traces.push {
+                    type: 'trace'
+                    name: 'assumption'
+                    filePath: file
+                    range: markersLayer.getMarkerRange(assumption.referenceKey, assumption.textRange)
+                    html: assumption.message
+                }
+
+
+        return traces
 
 
     issueToString:(issue, addState, markersLayer, obsolete)->
