@@ -1,4 +1,4 @@
-{File} = require 'atom'
+{File, CompositeDisposable} = require 'atom'
 
 fs = require 'fs'
 path = require 'path'
@@ -24,11 +24,24 @@ class KtAdvanceScanner
 
     messagesByFile:{}
 
+    violationsOnly: false
+
 
     constructor: (_registry) ->
         console.log 'contructing kt-scanner'
         @registry = _registry
         @executor = new KtAdvanceJarExecutor()
+
+        @subscriptions = new CompositeDisposable
+        @subscriptions.add(
+            atom.config.observe 'atom-kt-advance.violationsOnly',
+                (newValue) => (
+                    @violationsOnly = newValue
+                    console.log 'violationsOnly has changed:' + @violationsOnly
+                )
+
+        )
+
 
 
     findKtAlaysisDirLocation:(textEditor) ->
@@ -75,7 +88,7 @@ class KtAdvanceScanner
 
     ### Sends issue-related messages into linter interface ###
     _submitMessages: (fileMessages, textEditor) ->
-        @messagesByFile[textEditor.getPath()] = fileMessages;
+        @messagesByFile[textEditor.getPath()] = fileMessages
         messages = @_unwrapMessages()
 
         if not @indieLinter?
@@ -170,9 +183,24 @@ class KtAdvanceScanner
 
 
 
+    filterIssues:(issuesByRegions) ->
+        filtered={}
+        for key, issues of issuesByRegions
+
+            byRegFiltered = []
+            for issue in issues
+                if 'VIOLATION' == issue.state or !@violationsOnly
+                    byRegFiltered.push issue
+
+            if byRegFiltered.length>0
+                filtered[key]=byRegFiltered
+
+        return filtered
+
+
     collectMesages:(data, filePath, markersLayer) ->
 
-        issuesByRegions = data.posByKey.map
+        issuesByRegions = @filterIssues data.posByKey.map
 
 
         file=new File(filePath)

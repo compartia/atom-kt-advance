@@ -8,9 +8,11 @@ module.exports =
             default: 'java'
             title: 'Full path to the java executable'
             type: 'string'
-        verboseLogging:
-            default: false
-            title: 'Verbose logging'
+
+        violationsOnly:
+            default: true
+            title: 'Show proven violations only'
+            description: 'Do not display Open Proof Obligations (PPOs). The number of PPOs could be huge for large projects'
             type: 'boolean'
 
     maybeScan:(textEditor) ->
@@ -28,24 +30,15 @@ module.exports =
 
         # state-object as preparation for user-notifications
         @state = if state then state or {}
-
         @reg = new KtEditorsRegistry()
-
         @scanner = new KtAdvanceScanner(@reg)
+
         @reg.setScanner(@scanner)
 
         @queue = []
         console.log 'activate'
 
         @subscriptions = new CompositeDisposable
-        @subscriptions.add(
-            atom.config.observe 'atom-kt-advance.javaPath',
-                (newValue) => (
-                    @javaExecutablePath = newValue.trim()
-                    console.log 'javaExecutablePath has changed:' + @javaExecutablePath
-                )
-
-        )
 
         @subscriptions.add(
             atom.config.observe 'atom-kt-advance.verboseLogging',
