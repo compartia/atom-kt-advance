@@ -1,4 +1,3 @@
-Logger = require './logger'
 Htmler = require './html-helper'
 ### Manages per-editor message markers and decorations ###
 class KtAdvanceMarkersLayer
@@ -26,6 +25,7 @@ class KtAdvanceMarkersLayer
     TODO: add a tooltip (overlay) with description
     ###
     markLinkTargetRange: (refKey, range, txt, bundleId) ->
+        # console.error 'markLinkTargetRange'
         marker = @markersByReferenceKey[refKey]
         if not marker?
             marker = @markerLayer.markBufferRange(range)
@@ -78,9 +78,10 @@ class KtAdvanceMarkersLayer
 
     ### called when bubble shown ###
     updateAssumptionsLinks: (el) ->
-        Promise.resolve(el).then (value) =>
 
+        Promise.resolve(el).then (value) =>
             links = value.querySelectorAll("#kt-assumption-link-src")
+            console.error  links
 
             if links?
                 for link in links
@@ -105,27 +106,15 @@ class KtAdvanceMarkersLayer
 
         return el
 
-
-
-    # not in use
-    # deprecated
+    ### updating line numbers for the assumptions links ###
     updateLinks: (bundleId) ->
-
+        # console.error  'updateLinks'
         className='links-'+bundleId
         assumptionLinks = document.getElementsByClassName(className)
 
-
         for lnk in assumptionLinks
             @updateAssumptionsLinks(lnk)
-            # fileLink={
-            #     row:lnk.getAttribute('line')
-            #     col:lnk.getAttribute('col')
-            #     file:lnk.getAttribute('uri')
-            # }
-            # lnk.onclick = ()=>
-            #     @navigate(markerId, fileLink)
 
-        # TODO write this method
 
     navigate:(markerId, fileLink)->
         options = {
@@ -142,6 +131,7 @@ class KtAdvanceMarkersLayer
 
 
     removeAllMarkers: () ->
+        console.error  'removeAllMarkers'
         for marker in @markers
             marker.destroy()
 

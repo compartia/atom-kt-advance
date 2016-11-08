@@ -1,4 +1,3 @@
-Logger = require './logger'
 KtAdvanceMarkersLayer = require './markers-layer'
 {CompositeDisposable} = require 'atom'
 
@@ -35,8 +34,8 @@ class KtEditorsRegistry
     _addListeners: (editor)->
         #run indie linter on save
         editor.onDidSave (event) =>
-            Logger.log 'saved!', editor.id
-            @scanner.scan(editor)
+            console.log 'saved!', editor.id
+            # @scanner.scan(editor)
 
         ##
         # listen to Bubble. When bubble is up, update DOM after some timeout
@@ -54,7 +53,7 @@ class KtEditorsRegistry
         # @_log 'creating marker layer for editor id '+ textEditor.id, '....'
         if not @layersByEditorId[textEditor.id]?
             @layersByEditorId[textEditor.id] = new KtAdvanceMarkersLayer(textEditor)
-            Logger.log 'created marker layer for editor id ', textEditor.id
+            console.log 'created marker layer for editor id ', textEditor.id
         return @layersByEditorId[textEditor.id]
 
 

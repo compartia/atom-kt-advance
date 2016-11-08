@@ -17,8 +17,7 @@ class KtAdvanceJarExecutor
         jarPath = @locateJar()
         userDir = @findRoot(jsonPath)
 
-
-        @_log 'run: ', userDir,  ' json:', jsonPath
+        console.log  'running: ' + userDir + ' json:' + jsonPath
 
         command = 'java'
         args = ['-jar', jarPath, userDir, textEditor.getPath()]
@@ -27,7 +26,6 @@ class KtAdvanceJarExecutor
         promise = new Promise( (resolve, reject) =>
             exit = (code) ->
                 console.log('exited with code ' + code)
-                # @parseJson(textEditor, @fs)
                 if code==0
                     resolve()
                 else
@@ -53,15 +51,5 @@ class KtAdvanceJarExecutor
                 console.warn (output)
             else
                 console.log (output)
-
-    _log: (msgs...) ->
-        if (msgs.length > 0)
-            prefix = 'kt-advance jar: '
-            console.log prefix + msgs.join(' ')
-
-    _warn: (msgs...) ->
-        if (msgs.length > 0)
-            prefix = 'kt-advance jar: '
-            console.warn prefix + msgs.join(' ')
 
 module.exports = {KtAdvanceJarExecutor,VERSION}

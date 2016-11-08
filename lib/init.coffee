@@ -1,7 +1,5 @@
-KtAdvanceScanner = require './kt-advance-scanner'
-KtEditorsRegistry = require './editors-reg'
-
-{Directory, CompositeDisposable} = require 'atom'
+# Logger = require './logger'
+{CompositeDisposable,Emitter} = require 'atom'
 
 module.exports =
 
@@ -20,6 +18,9 @@ module.exports =
 
     activate: (state) ->
 
+        KtAdvanceScanner = require './kt-advance-scanner'
+        KtEditorsRegistry = require './editors-reg'
+
         # state-object as preparation for user-notifications
         @state = if state then state or {}
 
@@ -28,15 +29,15 @@ module.exports =
         @scanner = new KtAdvanceScanner(@reg)
         @reg.setScanner(@scanner)
 
-        @_log("activate")
+        @queue = []
+        console.log 'activate'
 
-        # require('atom-package-deps').install('atom-kt-advance')
         @subscriptions = new CompositeDisposable
         @subscriptions.add(
             atom.config.observe 'atom-kt-advance.javaPath',
                 (newValue) => (
                     @javaExecutablePath = newValue.trim()
-                    @_log('javaExecutablePath has changed', @javaExecutablePath)
+                    console.log 'javaExecutablePath has changed:' + @javaExecutablePath
                 )
 
         )
@@ -47,52 +48,18 @@ module.exports =
                     @verboseLogging = (newValue == true)
         )
 
-        @layersByEditorId={}
         @subscriptions.add(
             atom.workspace.observeTextEditors (textEditor) => (
-                console.log 'Scanning: ' + textEditor.getPath()
-                @reg.addEditor(textEditor)
                 if @scanner.accept textEditor.getPath()
-                    @scanner.scan textEditor
+                    @reg.addEditor(textEditor)
             )
         )
 
-        @subscriptions.add(
-            atom.workspace.onDidOpen( (event) =>
-                @_log 'OPENED: ',  event.uri
-                @_log 'OPENED: ',  event.item
-                @reg.addEditor(event.item)
-                @scanner.scan event.item
-            )
-        )
+
+
 
     toggle: ->
-        @_log('AtomKtAdvance was toggled!')
-
-
-    consumeLinter: (registry) ->
-        @_log 'Attempting to register an indie linter'
-        atom.packages.activate('linter').then =>
-            module =atom.packages.getLoadedPackage('linter').mainModule
-            indieRegistry = module.provideIndie()
-            reg = module.provideLinter()
-            # console.error reg
-
-            # HACK because of bug in `linter` package
-            indieRegistry.emit = registry.emitter.emit.bind(registry.emitter)
-
-            linter = indieRegistry.register {name: 'KT-Advance'}
-            # @pullRequestLinter.setLinter(linter)
-            @subscriptions.add(linter)
-            @scanner.setLinter(linter)
-
-            @_log 'indie linter registered'
+        console.log('AtomKtAdvance was toggled!')
 
 
     provideLinter: -> @scanner
-
-
-    _log: (msgs...) ->
-        if (msgs.length > 0)
-            prefix = 'kt-advance: '
-            console.log prefix + msgs.join(' ')

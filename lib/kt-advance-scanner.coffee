@@ -1,8 +1,5 @@
+{File} = require 'atom'
 
-
-Logger = require './logger'
-
-{File, CompositeDisposable} = require 'atom'
 fs = require 'fs'
 path = require 'path'
 moment= require 'moment'
@@ -17,28 +14,19 @@ KT_JSON_DIR='kt_analysis_export_'+VERSION
 
 class KtAdvanceScanner
 
-    grammarScopes: ['source.c']
+    grammarScopes: ['source.c', 'source.h', 'source.cpp', 'source.hpp']
     scope: 'file'
-    lintsOnChange: false #for V2 # Only lint on save
+    lintsOnChange: true #for V2 # Only lint on save
     lintOnFly: false # Only lint on save
 
-    linter: null
     registry: null
     executor: null
 
 
-
-
     constructor: (_registry) ->
-        Logger.log 'contructor'
-        @registry=_registry
-        @executor=new KtAdvanceJarExecutor()
-        @layersByEditorId=[]
-
-
-
-    setLinter: (_linter) ->
-        @linter=_linter
+        console.log 'contructing kt-scanner'
+        @registry = _registry
+        @executor = new KtAdvanceJarExecutor()
 
 
     findKtAlaysisDirLocation:(textEditor) ->
@@ -46,8 +34,10 @@ class KtAdvanceScanner
         parent = path.dirname(filePath)
 
         k=0
+        # TODO: test on Wintel
         while parent!=null && parent!='' && (parent?) && parent!='\\' && parent!='/' && k<100
             k++
+            # TODO: make 'ch_analysis' configurable
             dir = new File(path.join parent, 'ch_analysis')
             if dir.existsSync()
                 return parent
@@ -60,34 +50,64 @@ class KtAdvanceScanner
     getJsonPath:(textEditor) ->
         filePath = textEditor.getPath()
         ktDir = @findKtAlaysisDirLocation(textEditor)
-        if ktDir
+        if ktDir?
             relative = path.relative(ktDir, filePath)
             file = path.join ktDir, KT_JSON_DIR,  (relative + '.json')
             return file
-        return null
+        else
+            return null
 
+    ###
+        Sets the indie linter interface
+        hati-hati! it might be just a Promise.
+    ###
+    setLinter: (_linter) ->
+        @indieLinter = _linter
+
+    ### to be called by 'indie' linter when file is open ###
     scan: (textEditor) ->
         messages = @_lint(textEditor)
 
         Promise.resolve(messages).then (value) =>
-            @_submitMessages(value)
+            @_submitMessages(value, textEditor)
 
+    ### Sends issue-related messages into linter interface ###
+    _submitMessages:(messages, textEditor)->
+        Promise.resolve(@indieLinter).then(linter) ->
+            if not linter?
+                console.error 'scannning before linter is ready!'
+            else
+                console.log 'messages:', messages.length
+                if messages.length is 0
+                    linter.deleteMessages()
+                    return
+                linter.setMessages(messages)
 
-    _submitMessages:(messages)->
-        Logger.log 'messages:', messages.length
-        if messages.length is 0
-            @linter?.deleteMessages()
-            return
-        @linter?.setMessages(messages)
-
+    ###
+        Tests if a file Ok to analyse. File should be c or cpp.
+        deprecated: should be replaced with some Atom aout-of-the box func.
+    ###
     accept: (filePath) ->
         return path.extname(filePath) == '.c'
+
+
+    makeErrorMessage: (error, filePath) ->
+        result = []
+        console.error(error.message)
+        console.error(error.stack)
+        result.push({
+            lineNumber: 1
+            filePath: filePath
+            type: 'error'
+            text: "process crashed, see console for error details."
+        })
+        return result
 
     ## @Overrides
     lint: (textEditor) ->
         # do nothing, because this is async indie linter
         #we  have own onSave listener.
-        return []
+        return @_lint(textEditor)
 
     _lint: (textEditor) =>
         filePath = textEditor.getPath()
@@ -96,31 +116,42 @@ class KtAdvanceScanner
             return []
 
         else
-            jsonPath = @getJsonPath(textEditor)
-            messages = []
+            try
+                jsonPath = @getJsonPath(textEditor)
+                messages = []
 
-            jsonFile = new File(jsonPath)
+                jsonFile = new File(jsonPath)
 
-            if not jsonFile.existsSync()
-                #run JAR first to generate json-s
-                return @executor.execJar(jsonPath, textEditor).then =>
-                    return @parseJson(textEditor)
-            else
-                return @parseJson(textEditor)
+                if not jsonFile.existsSync()
+                    # in case no .json is there we have to run external analyser
+                    # run JAR first to generate json-s
+                    return @executor.execJar(jsonPath, textEditor).then =>
+                        return @parseJson(textEditor, jsonPath)
+                else
+                    return @parseJson(textEditor, jsonPath)
 
-
-    parseJson :(textEditor) ->
-        jsonPath = @getJsonPath(textEditor)
-        json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
-
-        data = JSON.parse(json)
+            catch e
+                return @makeErrorMessage(e, filePath)
 
 
+    ###
+        Reads data from given .json file and converts
+        it to array of linter messages
+    ###
+    parseJson :(textEditor, jsonPath) ->
+        try
+            json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
 
-        markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
-        messages = @collectMesages(data, textEditor.getPath(), markersLayer)
+            data = JSON.parse(json)
 
-        return messages
+            markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
+            messages = @collectMesages(data, textEditor.getPath(), markersLayer)
+
+            return messages
+
+        catch e
+            return @makeErrorMessage(e, textEditor.getPath())
+
 
 
     collectMesages:(data, filePath, markersLayer) ->
@@ -131,7 +162,7 @@ class KtAdvanceScanner
         file=new File(filePath)
         digest1 =  file.getDigestSync()
         digest2 =  data.header.digest
-        Logger.log digest1, ' vs ', digest2
+
 
         stats = fs.statSync(filePath)
         mtime = moment(stats.mtime)
@@ -142,6 +173,8 @@ class KtAdvanceScanner
         for key, issues of issuesByRegions
             if issues?
                 obsolete = (digest1!=digest2)
+                if obsolete
+                    console.log 'file digest differs: ' + digest1 + ' vs ' + digest2
                 collapsed = @collapseIssues(issues, markersLayer, obsolete)
 
                 # i++
