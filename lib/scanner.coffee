@@ -2,7 +2,7 @@
 
 fs = require 'fs'
 path = require 'path'
-moment= require 'moment'
+# moment= require 'moment'
 
 {KtAdvanceJarExecutor,VERSION} = require './jar-exec'
 
@@ -16,7 +16,7 @@ class KtAdvanceScanner
 
     grammarScopes: ['source.c', 'source.h', 'source.cpp', 'source.hpp']
     scope: 'file'
-    lintsOnChange: true #for V2 # Only lint on save
+    lintsOnChange: false #for V2 # Only lint on save
     lintOnFly: false # Only lint on save
 
     registry: null
@@ -25,6 +25,10 @@ class KtAdvanceScanner
     messagesByFile:{}
 
     violationsOnly: false
+
+
+    setStatsModel: (@statsModel)->
+    setStatsView: (@statsView)->
 
 
     constructor: (_registry) ->
@@ -171,6 +175,9 @@ class KtAdvanceScanner
 
             data = JSON.parse(json)
 
+            @statsModel.measures=data.measures
+            @statsView.update()
+
             markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
             messages = @collectMesages(data, textEditor.getPath(), markersLayer)
 
@@ -199,7 +206,7 @@ class KtAdvanceScanner
 
 
     collectMesages:(data, filePath, markersLayer) ->
-
+        messages = []
         issuesByRegions = @filterIssues data.posByKey.map
 
 
@@ -207,18 +214,27 @@ class KtAdvanceScanner
         digest1 =  file.getDigestSync()
         digest2 =  data.header.digest
 
+        obsolete = (digest1!=digest2)
+        if obsolete
+            console.log 'file digest differs: ' + digest1 + ' vs ' + digest2
+
+            warning = {
+                type: 'warning'
+                filePath: filePath
+                text: 'File digest differs from what was ananlysed by KT-Advance. Marking all issues as obsolete. Please re-run the analyser'
+            }
+            messages.push warning
+
         #
         # stats = fs.statSync(filePath)
         # mtime = moment(stats.mtime)
         # # console.log(mtime)
 
-        messages = []
+
         # i=0;
         for key, issues of issuesByRegions
             if issues?
-                obsolete = (digest1!=digest2)
-                if obsolete
-                    console.log 'file digest differs: ' + digest1 + ' vs ' + digest2
+
 
                 #in case there are several messages bound to the same region,
                 #linter cannot display all of them in a pop-up bubble, so we
@@ -265,7 +281,7 @@ class KtAdvanceScanner
             message:txt
             state: if obsolete then 'obsolete' else state
             # 05/31/2016 16:55:52
-            time: moment(issues[0].time,  "MM/DD/YYYY HH:mm:ss")
+            # time: moment(issues[0].time,  "MM/DD/YYYY HH:mm:ss")
             #XXX: per issue time!! or use minimal
             # linkedMarkerIds:markers
             #they all have same text range, so just take 1st

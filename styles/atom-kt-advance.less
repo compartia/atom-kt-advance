@@ -4,11 +4,38 @@
 // for a full listing of what's available.
 @import "ui-variables";
 
+
 @background-color-error-multiple: #ff9933;
 @background-color-error: #dd1133;
 @background-color-warning: #f2be55;
 @background-color-level: #999999;
 
+@kt-padding: 1rem;
+
+
+.kt-stats{
+    padding: @kt-padding;
+    padding-top: @kt-padding/2;
+    .value{
+        float: right;
+        padding-left: @kt-padding;
+        min-width: 3rem;
+        text-align: right;
+    }
+    .value.main{
+        font-weight: bold;
+    }
+    .label{
+        &:after{
+            content: ':'
+        }
+        display: inline;
+    }
+    h5{
+        border-top: 1px solid fade(#333333, 20%);
+        color: fade(#333333, 50%);
+    }
+}
 .atom-kt-advance {
 
 }

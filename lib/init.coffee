@@ -1,6 +1,9 @@
 # Logger = require './logger'
 {CompositeDisposable,Emitter} = require 'atom'
 
+StatsElement = require './stats-view'
+StatsModel =  require('./stats-model')
+
 module.exports =
 
     config:
@@ -16,14 +19,22 @@ module.exports =
             type: 'boolean'
 
     maybeScan:(textEditor) ->
-       if @scanner.accept textEditor.getPath()
-           @reg.addEditor(textEditor)
-           @scanner.scan textEditor
+        if @scanner.accept textEditor.getPath()
+            @reg.addEditor(textEditor)
+            @scanner.scan textEditor
 
     deactivate: ->
         @subscriptions.dispose()
 
     activate: (state) ->
+        StatsElement ?= require './stats-view'
+
+        @view = new StatsElement
+        @model = new StatsModel
+
+        @view.setModel @model
+        panel = atom.workspace.addRightPanel item: @view
+
 
         KtAdvanceScanner = require './scanner'
         KtEditorsRegistry = require './editors-reg'
@@ -32,6 +43,8 @@ module.exports =
         @state = if state then state or {}
         @reg = new KtEditorsRegistry()
         @scanner = new KtAdvanceScanner(@reg)
+        @scanner.setStatsModel(@model)
+        @scanner.setStatsView(@view)
 
         @reg.setScanner(@scanner)
 
