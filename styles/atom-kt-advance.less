@@ -24,6 +24,8 @@
     }
     .value.main{
         font-weight: bold;
+
+        border-radius: 3px;
     }
     .label{
         &:after{
@@ -32,8 +34,20 @@
         display: inline;
     }
     h5{
-        border-top: 1px solid fade(#333333, 20%);
-        color: fade(#333333, 50%);
+        font-weight: 200;
+        padding-top: @kt-padding;
+        padding-bottom: @kt-padding/4;
+        margin-bottom: @kt-padding/4;
+        border-bottom: 1px solid fade(#999999, 20%);
+        font-size: 120%;
+    }
+
+    .violation{
+        color: @background-color-error;
+    }
+
+    .open{
+        color: @background-color-warning;
     }
 }
 .atom-kt-advance {

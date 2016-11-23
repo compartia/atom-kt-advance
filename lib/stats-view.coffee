@@ -86,6 +86,18 @@ module.exports =
             @kt_ppo_complexity_c.text(@_round(m.kt_ppo_complexity_c))
             @kt_ppo_complexity_g.text(@_round(m.kt_ppo_complexity_g))
 
+            #
+            @kt_ppo_violation.toggleClass("text-error", m.kt_ppo_violation>0)
+            @kt_ppo_violation_pc.toggleClass("text-error", m.kt_ppo_violation>0)
+            @kt_spo_violation.toggleClass("text-error", m.kt_spo_violation>0)
+            @kt_spo_violation_pc.toggleClass("text-error", m.kt_spo_violation>0)
+
+
+            @kt_ppo_open.toggleClass("text-warning", m.kt_ppo_open>0)
+            @kt_ppo_open_pc.toggleClass("text-warning", m.kt_ppo_open>0)
+            @kt_spo_open.toggleClass("text-warning", m.kt_spo_open>0)
+            @kt_spo_open_pc.toggleClass("text-warning", m.kt_spo_open>0)
+
 
 
             # "measures" : {

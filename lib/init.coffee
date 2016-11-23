@@ -22,6 +22,9 @@ module.exports =
         if @scanner.accept textEditor.getPath()
             @reg.addEditor(textEditor)
             @scanner.scan textEditor
+        else
+            @model?.measures={}
+            @view?.update()
 
     deactivate: ->
         @subscriptions.dispose()
@@ -49,7 +52,7 @@ module.exports =
         @reg.setScanner(@scanner)
 
         @queue = []
-        console.log 'activate'
+
 
         @subscriptions = new CompositeDisposable
 
@@ -60,10 +63,13 @@ module.exports =
         )
 
         @subscriptions.add(
-            atom.workspace.observeTextEditors (textEditor) => (
+            atom.workspace.onDidStopChangingActivePaneItem (textEditor) => (
                 @maybeScan textEditor
             )
         )
+
+        console.log 'activated'
+
 
 
     toggle: ->
@@ -88,9 +94,9 @@ module.exports =
 
 
             Promise.resolve(linter).then (value) =>
-                console.log 'indie linter is ready'
+                # console.log 'indie linter is ready'
                 @scanner.setLinter(linter)
                 # console.log atom.textEditors.editors
                 atom.textEditors.editors.forEach (textEditor) =>
-                    console.log 'currently open: '+textEditor.getPath()
+                    # console.log 'currently open: '+textEditor.getPath()
                     @maybeScan textEditor
