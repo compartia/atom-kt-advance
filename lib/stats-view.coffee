@@ -8,7 +8,7 @@ module.exports =
         @content: ->
             @div class: 'kt-stats', =>
                 @h4 "KT-Advance Stats"
-
+                @h6 outlet: 'file_title'
 
                 @h5 "Primary Proof Obligations"
                 @div class: 'metric', =>
@@ -39,16 +39,47 @@ module.exports =
                     @div class: 'value main', outlet: 'kt_spo_discharged', ''
                     @div class: 'value', outlet: 'kt_spo_discharged_pc', ''
 
-                @h5 "Complexity (sum)"
+                @h5 "Complexity"
+                @h6 "Total"
                 @div class: 'metric', =>
                     @div class: 'label', "P-Complexity"
-                    @div class: 'value main', outlet: 'kt_ppo_complexity_p', ''
+                    @div class: 'value', outlet: 'kt_ppo_complexity_p', ''
                 @div class: 'metric', =>
                     @div class: 'label', "С-Complexity"
-                    @div class: 'value main', outlet: 'kt_ppo_complexity_c', ''
+                    @div class: 'value', outlet: 'kt_ppo_complexity_c', ''
                 @div class: 'metric', =>
                     @div class: 'label', "G-Complexity"
-                    @div class: 'value main', outlet: 'kt_ppo_complexity_g', ''
+                    @div class: 'value', outlet: 'kt_ppo_complexity_g', ''
+
+
+                @h6 "Average Per Line"
+                @div class: 'metric', =>
+                    @div class: 'label', "P-Complexity"
+                    @div class: 'value', outlet: 'kt_ppo_complexity_p_pl', ''
+                @div class: 'metric', =>
+                    @div class: 'label', "С-Complexity"
+                    @div class: 'value', outlet: 'kt_ppo_complexity_c_pl', ''
+                @div class: 'metric', =>
+                    @div class: 'label', "G-Complexity"
+                    @div class: 'value', outlet: 'kt_ppo_complexity_g_pl', ''
+
+                @h6 "Average Per Proof Obligation"
+                @div class: 'metric', =>
+                    @div class: 'label', "P-Complexity"
+                    @div class: 'value main', outlet: 'kt_ppo_complexity_p_pp', ''
+                @div class: 'metric', =>
+                    @div class: 'label', "С-Complexity"
+                    @div class: 'value main', outlet: 'kt_ppo_complexity_c_pp', ''
+                @div class: 'metric', =>
+                    @div class: 'label', "G-Complexity"
+                    @div class: 'value main', outlet: 'kt_ppo_complexity_g_pp', ''
+
+                #
+                @h5 "General"
+                @div class: 'metric', =>
+                    @div class: 'label', "Number of lines"
+                    @div class: 'value main', outlet: 'line_count', ''
+
 
         initialize: ->
             console.log 'init'
@@ -58,13 +89,34 @@ module.exports =
             return '-'
 
         _percent: (x)->
-            return Math.round(x*10)/10 +' % ' if x?
+            return Math.round(x * 10.0) / 10.0 +'% ' if x?
             return '-'
+
+        _div: (a, b)->
+            if !b?
+                return '?'
+            if !a?
+                return '-'
+
+            return Math.round(100.0*a/b)/100
+
 
         update: (filename)->
             return if not @model? or not @model.measures
 
             m = @model.measures
+
+
+            if !m.kt_spo_?
+                m.kt_spo_=0
+            if !m.kt_ppo_?
+                m.kt_ppo_=0
+
+            m.po_count = @_round(m.kt_ppo_) + @_round(m.kt_spo_)
+
+            @file_title.text(@model.file_title)
+            @line_count.text(@_round(m.line_count))
+
             @kt_ppo_open.text(@_round(m.kt_ppo_open))
             @kt_ppo_discharged.text(@_round(m.kt_ppo_discharged))
             @kt_ppo_violation.text(@_round(m.kt_ppo_violation))
@@ -86,6 +138,15 @@ module.exports =
             @kt_ppo_complexity_c.text(@_round(m.kt_ppo_complexity_c))
             @kt_ppo_complexity_g.text(@_round(m.kt_ppo_complexity_g))
 
+
+            @kt_ppo_complexity_p_pl.text(@_div(m.kt_ppo_complexity_p, m.line_count))
+            @kt_ppo_complexity_c_pl.text(@_div(m.kt_ppo_complexity_c, m.line_count))
+            @kt_ppo_complexity_g_pl.text(@_div(m.kt_ppo_complexity_g, m.line_count))
+
+            @kt_ppo_complexity_p_pp.text(@_div(m.kt_ppo_complexity_p, m.po_count))
+            @kt_ppo_complexity_c_pp.text(@_div(m.kt_ppo_complexity_c, m.po_count))
+            @kt_ppo_complexity_g_pp.text(@_div(m.kt_ppo_complexity_g, m.po_count))
+
             #
             @kt_ppo_violation.toggleClass("text-error", m.kt_ppo_violation>0)
             @kt_ppo_violation_pc.toggleClass("text-error", m.kt_ppo_violation>0)
@@ -100,34 +161,10 @@ module.exports =
 
 
 
-            # "measures" : {
-            #   "kt_spo_violation" : "0.0",
-            #   "kt_spo_violation_pc" : "0.0",
-            #   "kt_ppo_open_predicate_non_negative" : "9.0",
-            #   "kt_per_predicate_distr" : "[{\"key\":\"predicate_cast\",\"value\":[1.0,0.0,0.0,0.0]},{\"key\":\"predicate_non_negative\",\"value\":[9.0,2.0,0.0,0.0]},{\"key\":\"predicate_unsigned_to_signed_cast\",\"value\":[2.0,0.0,0.0,0.0]},{\"key\":\"predicate_width_overflow\",\"value\":[9.0,0.0,0.0,0.0]}]",
-            #   "kt_ppo_violation" : "2.0",
-            #   "kt_ppo_violation_pc" : "1.1695906432748537",
-            #   "kt_spo_open_pc" : "0.0",
-            #   "kt_ppo_open" : "21.0",
-            #   "kt_ppo_complexity_p" : "86.0",
-            #   "kt_spo_discharged_pc" : "0.0",
-            #   "kt_ppo_open_predicate_width_overflow" : "9.0",
-            #   "kt_ppo_discharged_pc" : "86.54970760233918",
-            #   "kt_spo_open" : "0.0",
-            #   "kt_spo_discharged" : "0.0",
-            #   "kt_ppo_complexity_g" : "0.0",
-            #   "kt_ppo_discharged" : "148.0",
-            #   "kt_ppo_complexity_c" : "34.0",
-            #   "kt_ppo_" : "171.0",
-            #   "kt_ppo_open_pc" : "12.280701754385966",
-            #   "kt_spo_" : "0.0"
-            # }
-
         attached: ->
             # @update()
 
         getModel: -> @model
-
 
 
         setModel: (@model) ->

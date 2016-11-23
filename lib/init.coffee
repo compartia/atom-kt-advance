@@ -19,7 +19,7 @@ module.exports =
             type: 'boolean'
 
     maybeScan:(textEditor) ->
-        if @scanner.accept textEditor.getPath()
+        if textEditor.getPath? and @scanner.accept textEditor.getPath()
             @reg.addEditor(textEditor)
             @scanner.scan textEditor
         else
