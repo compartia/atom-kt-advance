@@ -55,30 +55,30 @@ module.exports =
                 @h6 "Average Per Line"
                 @div class: 'metric', =>
                     @div class: 'label', "P-Complexity"
-                    @div class: 'value', outlet: 'kt_ppo_complexity_p_pl', ''
+                    @div class: 'value', outlet: 'kt_ppo_complexity_p_pl'
                 @div class: 'metric', =>
                     @div class: 'label', "С-Complexity"
-                    @div class: 'value', outlet: 'kt_ppo_complexity_c_pl', ''
+                    @div class: 'value', outlet: 'kt_ppo_complexity_c_pl'
                 @div class: 'metric', =>
                     @div class: 'label', "G-Complexity"
-                    @div class: 'value', outlet: 'kt_ppo_complexity_g_pl', ''
+                    @div class: 'value', outlet: 'kt_ppo_complexity_g_pl'
 
                 @h6 "Average Per Proof Obligation"
                 @div class: 'metric', =>
                     @div class: 'label', "P-Complexity"
-                    @div class: 'value main', outlet: 'kt_ppo_complexity_p_pp', ''
+                    @div class: 'value main', outlet: 'kt_ppo_complexity_p_pp'
                 @div class: 'metric', =>
                     @div class: 'label', "С-Complexity"
-                    @div class: 'value main', outlet: 'kt_ppo_complexity_c_pp', ''
+                    @div class: 'value main', outlet: 'kt_ppo_complexity_c_pp'
                 @div class: 'metric', =>
                     @div class: 'label', "G-Complexity"
-                    @div class: 'value main', outlet: 'kt_ppo_complexity_g_pp', ''
+                    @div class: 'value main', outlet: 'kt_ppo_complexity_g_pp'
 
                 #
                 @h5 "General"
                 @div class: 'metric', =>
                     @div class: 'label', "Number of lines"
-                    @div class: 'value main', outlet: 'line_count', ''
+                    @div class: 'value main', outlet: 'line_count'
 
 
         initialize: ->
@@ -92,6 +92,13 @@ module.exports =
             return Math.round(x * 10.0) / 10.0 +'% ' if x?
             return '-'
 
+        _percent_div: (a, b)->
+            if !a? or !b? or Math.abs(b)<0.0001
+                return '-'
+
+            return @_percent(a * 100.0 /b)
+
+
         _div: (a, b)->
             if !b?
                 return '?'
@@ -102,9 +109,9 @@ module.exports =
 
 
         update: (filename)->
-            return if not @model? or not @model.measures
+            return if not @model?
 
-            m = @model.measures
+            m = @model.getMeasures(@model.file_key)
 
 
             if !m.kt_spo_?
@@ -114,24 +121,26 @@ module.exports =
 
             m.po_count = @_round(m.kt_ppo_) + @_round(m.kt_spo_)
 
-            @file_title.text(@model.file_title)
+            @file_title.text(m.file_title)
             @line_count.text(@_round(m.line_count))
 
             @kt_ppo_open.text(@_round(m.kt_ppo_open))
             @kt_ppo_discharged.text(@_round(m.kt_ppo_discharged))
             @kt_ppo_violation.text(@_round(m.kt_ppo_violation))
 
-            @kt_ppo_open_pc.text(@_percent(m.kt_ppo_open_pc))
-            @kt_ppo_discharged_pc.text(@_percent(m.kt_ppo_discharged_pc))
-            @kt_ppo_violation_pc.text(@_percent(m.kt_ppo_violation_pc))
+            @kt_ppo_violation_pc.text(@_percent_div(m.kt_ppo_violation, m.kt_ppo_))
+            @kt_ppo_open_pc.text(@_percent_div(m.kt_ppo_open, m.kt_ppo_))
+            @kt_ppo_discharged_pc.text(@_percent_div(m.kt_ppo_discharged, m.kt_ppo_))
+
 
             @kt_spo_open.text(@_round(m.kt_spo_open))
             @kt_spo_discharged.text(@_round(m.kt_spo_discharged))
             @kt_spo_violation.text(@_round(m.kt_spo_violation))
 
-            @kt_spo_open_pc.text(@_percent(m.kt_spo_open_pc))
-            @kt_spo_discharged_pc.text(@_percent(m.kt_spo_discharged_pc))
-            @kt_spo_violation_pc.text(@_percent(m.kt_spo_violation_pc))
+            @kt_spo_violation_pc.text(@_percent_div(m.kt_spo_violation, m.kt_spo_))
+            @kt_spo_open_pc.text(@_percent_div(m.kt_spo_open, m.kt_spo_))
+            @kt_spo_discharged_pc.text(@_percent_div(m.kt_spo_discharged, m.kt_spo_))
+
 
 
             @kt_ppo_complexity_p.text(@_round(m.kt_ppo_complexity_p))

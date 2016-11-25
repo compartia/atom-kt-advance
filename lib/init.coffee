@@ -18,13 +18,18 @@ module.exports =
             description: 'Do not display Open Proof Obligations (PPOs). The number of PPOs could be huge for large projects'
             type: 'boolean'
 
+
+
     maybeScan:(textEditor) ->
+
         if textEditor.getPath? and @scanner.accept textEditor.getPath()
             @reg.addEditor(textEditor)
             @scanner.scan textEditor
         else
-            @model?.measures={}
-            @view?.update()
+            @model.file_key = null
+            @view.update()
+
+
 
     deactivate: ->
         @subscriptions.dispose()

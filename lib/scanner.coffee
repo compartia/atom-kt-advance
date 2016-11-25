@@ -175,9 +175,11 @@ class KtAdvanceScanner
 
             data = JSON.parse(json)
 
-            @statsModel.measures = data.measures
-            @statsModel.file_title = textEditor.getTitle()
-            @statsModel.measures.line_count = textEditor.getLineCount()
+            data.measures.line_count = textEditor.getLineCount()
+            data.measures.file_title = textEditor.getTitle()
+            @statsModel.setMeasures(textEditor.getPath(), data.measures)
+            @statsModel.file_key = textEditor.getPath()
+
             @statsView.update()
 
             markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
