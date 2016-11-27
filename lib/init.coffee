@@ -22,7 +22,7 @@ module.exports =
 
     maybeScan:(textEditor) ->
 
-        if textEditor.getPath? and @scanner.accept textEditor.getPath()
+        if textEditor? and textEditor.getPath? and @scanner.accept textEditor.getPath()
             @reg.addEditor(textEditor)
             @scanner.scan textEditor
         else
