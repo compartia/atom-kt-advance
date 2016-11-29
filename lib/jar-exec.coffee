@@ -1,7 +1,7 @@
 {BufferedProcess, CompositeDisposable} = require 'atom'
 path = require 'path'
 
-VERSION = "5.5.7"
+VERSION = "5.5.8"
 
 
 class KtAdvanceJarExecutor
@@ -32,7 +32,10 @@ class KtAdvanceJarExecutor
         console.log  'running: ' + userDir + ' json:' + jsonPath
 
         command = @javaExecutablePath
-        args = ['-jar', jarPath, userDir, textEditor.getPath()]
+
+        args = ['-jar', jarPath, userDir]
+        if textEditor?
+            args.push textEditor.getPath()
 
 
         promise = new Promise( (resolve, reject) =>

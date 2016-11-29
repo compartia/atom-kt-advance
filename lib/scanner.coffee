@@ -76,6 +76,8 @@ class KtAdvanceScanner
         else
             return null
 
+
+
     ###
         Sets the indie linter interface
         hati-hati! it might be just a Promise.
@@ -112,21 +114,24 @@ class KtAdvanceScanner
                 messages.push(msg)
 
         return messages
+
     ###
         Tests if a file Ok to analyse. File should be c or cpp.
         deprecated: should be replaced with some Atom aout-of-the box func.
     ###
     accept: (filePath) ->
+        #FIXME: in theory this check sould be done by The Linter itself,
+        #that's grammarScopes for
         return path.extname(filePath) == '.c'
 
 
-    makeErrorMessage: (error, filePath) ->
+    _makeErrorMessage: (error, filePath) ->
         result = []
         result.push({
             lineNumber: 1
             filePath: filePath
             type: 'error'
-            text: "process crashed, see console for error details. "+error.message
+            text: "process crashed, see dev. console for error details. "+error.message
         })
         return result
 
@@ -147,40 +152,68 @@ class KtAdvanceScanner
         else
             try
                 jsonPath = @getJsonPath(textEditor)
-                messages = []
-
                 jsonFile = new File(jsonPath)
 
                 if not jsonFile.existsSync()
                     # in case no .json is there we have to run external analyser
                     # run JAR first to generate json-s
                     return @executor.execJar(jsonPath, textEditor).then =>
-                        return @parseJson(textEditor, jsonPath)
+                        return @readAndParseJson(textEditor, jsonPath)
                 else
-                    return @parseJson(textEditor, jsonPath)
+                    return @readAndParseJson(textEditor, jsonPath)
 
             catch e
                 console.error(e.message)
                 console.error(e.stack)
-                return @makeErrorMessage(e, filePath)
+                return @_makeErrorMessage(e, filePath)
+
+
+    scanProject:(textEditor) ->
+        ktDir = @findKtAlaysisDirLocation(textEditor)
+        if not ktDir?
+            @statsView.errorMessage.text(
+                'No ch_analysis dir found under ' + @_projectPath(textEditor))
+
+        else
+            jsonPath =  path.join ktDir, KT_JSON_DIR,  ('__project__.json')
+            jsonFile = new File(jsonPath)
+
+            if not jsonFile.existsSync()
+                @executor.execJar(jsonPath, null).then =>
+                    @readAndParseProjectMetrics(textEditor, jsonPath)
+            else
+                @readAndParseProjectMetrics(textEditor, jsonPath)
+
+    _projectPath:(textEditor)->
+        rr = atom.project.relativizePath(textEditor.getPath())
+        return rr[0]
+
+    readAndParseProjectMetrics:(textEditor, jsonPath) ->
+        projectPath = @_projectPath(textEditor)
+
+        data = @readJson(jsonPath)
+
+        data.measures.file_title = ""
+        data.measures.scope = "poject"
+        @statsModel.setMeasures(projectPath, data.measures)
+        @statsModel.file_key = projectPath
+        @statsView.update()
+        # @statsModel.file_title=projectPath
+
+    readJson :(jsonPath) ->
+        json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
+        return JSON.parse(json)
 
 
     ###
         Reads data from given .json file and converts
         it to array of linter messages
     ###
-    parseJson :(textEditor, jsonPath) ->
+    readAndParseJson :(textEditor, jsonPath) ->
         try
-            json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
+            data = @readJson(jsonPath)
 
-            data = JSON.parse(json)
-
-            data.measures.line_count = textEditor.getLineCount()
-            data.measures.file_title = textEditor.getTitle()
-            @statsModel.setMeasures(textEditor.getPath(), data.measures)
-            @statsModel.file_key = textEditor.getPath()
-
-            @statsView.update()
+            @parseMetrics(textEditor, data)
 
             markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
             messages = @collectMesages(data, textEditor.getPath(), markersLayer)
@@ -190,8 +223,16 @@ class KtAdvanceScanner
         catch e
             console.error (e.message)
             console.error (e.stack)
-            return @makeErrorMessage(e, textEditor.getPath())
+            return @_makeErrorMessage(e, textEditor.getPath())
 
+    parseMetrics: (textEditor, data) ->
+        data.measures.line_count = textEditor.getLineCount()
+        data.measures.file_title = textEditor.getTitle()
+        data.measures.projectPath=@_projectPath(textEditor)
+        data.measures.scope = "file"
+        @statsModel.setMeasures(textEditor.getPath(), data.measures)
+        @statsModel.file_key = textEditor.getPath()
+        @statsView.update()
 
 
     filterIssues:(issuesByRegions) ->
@@ -229,13 +270,7 @@ class KtAdvanceScanner
             }
             messages.push warning
 
-        #
-        # stats = fs.statSync(filePath)
-        # mtime = moment(stats.mtime)
-        # # console.log(mtime)
 
-
-        # i=0;
         for key, issues of issuesByRegions
             if issues?
 

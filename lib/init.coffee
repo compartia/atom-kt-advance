@@ -73,6 +73,14 @@ module.exports =
             )
         )
 
+        @subscriptions.add(
+            @view.onScanProjectButton () => (
+                console.warn 'scanning the entire project...'
+                if atom.workspace.getActiveTextEditor()
+                    @scanner.scanProject atom.workspace.getActiveTextEditor()
+            )
+        )
+
         console.log 'activated'
 
 

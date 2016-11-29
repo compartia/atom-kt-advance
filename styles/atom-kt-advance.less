@@ -12,8 +12,27 @@
 
 @kt-padding: 1rem;
 
+.kt-wider{
+    min-width: 8rem!important;
+    padding-left: 2rem!important;
+}
+
+.kt-hidden{
+    display: none;
+}
 
 .kt-stats{
+    .error{
+        overflow: scroll;
+        display: block;
+        width: 100%;
+    }
+    button{
+        margin-top: @kt-padding*2;
+    }
+
+
+
     padding: @kt-padding;
     padding-top: @kt-padding/2;
     .value{
