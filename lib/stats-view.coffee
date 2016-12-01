@@ -9,11 +9,13 @@ module.exports =
 
         @content: ->
             @div =>
-                @div class: 'tab-bar', =>
-                    @div class:'tab kt-wider', outlet: 'btnProject', 'Project'
-                    @div class:'tab kt-wider', outlet: 'btnFile', 'File'
+                @ul class: 'tab-bar kt-width', =>
+                    @li class:'tab kt-wider', outlet: 'btnProject',  =>
+                        @div class:'title', 'Project'
+                    @li class:'tab kt-wider active', outlet: 'btnFile',  =>
+                        @div class:'title', 'File'
 
-                @div class: 'kt-stats', =>
+                @div class: 'kt-stats kt-width', =>
 
                     @h4 "KT-Advance Stats"
 
