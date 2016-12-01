@@ -1,6 +1,6 @@
 {
   "atom-workspace": {
     "ctrl-alt-o": "atom-kt-advance:toggle",
-    "ctrl-alt-l": "atom-kt-advance:lint"
+    "ctrl-alt-l": "atom-kt-advance:toggleSidePanel"
   }
 }

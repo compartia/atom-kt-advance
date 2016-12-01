@@ -34,15 +34,17 @@ module.exports =
     deactivate: ->
         @subscriptions.dispose()
 
+
+
+
     activate: (state) ->
         StatsElement ?= require './stats-view'
 
         @view = new StatsElement
         @model = new StatsModel
-
         @view.setModel @model
-        panel = atom.workspace.addRightPanel item: @view
 
+        @toggleSidePanel()
 
         KtAdvanceScanner = require './scanner'
         KtEditorsRegistry = require './editors-reg'
@@ -88,6 +90,10 @@ module.exports =
     toggle: ->
         console.log('AtomKtAdvance was toggled!')
 
+    toggleSidePanel: ->
+        console.log('show/hide panel')
+        if !@sidepanel?
+            @sidepanel = atom.workspace.addRightPanel item: @view
 
     provideLinter: -> @scanner
 
