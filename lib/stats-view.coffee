@@ -1,9 +1,8 @@
 {View} = require 'space-pen'
-{ScrollView} = require 'atom-space-pen-views'
 {Emitter} = require 'atom'
 
 module.exports =
-    class StatsElement extends ScrollView
+    class StatsElement extends View
         constructor: ->
             @emitter = new Emitter
             super()
