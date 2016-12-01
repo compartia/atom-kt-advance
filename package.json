@@ -1,44 +1,37 @@
 {
-    "name": "atom-kt-advance",
-    "main": "./lib/init",
-    "version": "0.0.0",
-    "description": "KT Advance static C analyser",
-    "keywords": [
-        "lint",
-        "linter",
-        "c"
-    ],
-
-    "repository": "https://github.com/compartia/atom-kt-advance",
-    "license": "MIT",
-    "engines": {
-        "atom": ">=1.0.0 <2.0.0"
-    },
-
-    "dependencies": {
-        "atom-package-deps": "^2.0.3",
-        "atom-space-pen-views": "^2.2.0"
-    },
-
-    "providedServices": {
-        "linter": {
-            "versions": {
-                "1.0.0": "provideLinter"
-            }
-        }
-    },
-
-    "consumedServices": {
-        "linter-indie": {
-            "versions": {
-                "1.0.0": "consumeLinter"
-            }
-        }
-    },
-
-    "package-deps": [
-        "linter"
-    ]
-
-
+  "name": "atom-kt-advance",
+  "main": "./lib/init",
+  "version": "0.1.0",
+  "description": "KT Advance static C analyser",
+  "keywords": [
+    "lint",
+    "linter",
+    "c"
+  ],
+  "repository": "https://github.com/compartia/atom-kt-advance",
+  "license": "MIT",
+  "engines": {
+    "atom": ">=1.0.0 <2.0.0"
+  },
+  "dependencies": {
+    "atom-package-deps": "^2.0.3",
+    "atom-space-pen-views": "^2.2.0"
+  },
+  "providedServices": {
+    "linter": {
+      "versions": {
+        "1.0.0": "provideLinter"
+      }
+    }
+  },
+  "consumedServices": {
+    "linter-indie": {
+      "versions": {
+        "1.0.0": "consumeLinter"
+      }
+    }
+  },
+  "package-deps": [
+    "linter"
+  ]
 }
