@@ -69,16 +69,14 @@ class KtAdvanceJarExecutor
         return false
 
     stdout: (outputChunk) =>
-        if @verboseLogging
-            outputLines=outputChunk.split('\n')
-            for output in outputLines
-                if output.startsWith('ERROR')
-                    console.error (output)
-                else if output.startsWith('WARN')
-                    console.warn (output)
-                else
-                    console.log (output)
-        else
-            return
+        outputLines=outputChunk.split('\n')
+        for output in outputLines
+            if output.startsWith('ERROR')
+                console.error (output)
+            else if output.startsWith('WARN') && @verboseLogging
+                console.warn (output)
+            else if @verboseLogging
+                console.log (output)
+
 
 module.exports = {KtAdvanceJarExecutor,VERSION}

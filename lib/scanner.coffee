@@ -127,11 +127,14 @@ class KtAdvanceScanner
 
     _makeErrorMessage: (error, filePath) ->
         result = []
+        msg = "process crashed, see dev. console for error details. "
+        if error?
+            msg+=error.message
         result.push({
             lineNumber: 1
             filePath: filePath
             type: 'error'
-            text: "process crashed, see dev. console for error details. "+error.message
+            text: msg
         })
         return result
 
@@ -157,8 +160,10 @@ class KtAdvanceScanner
                 if not jsonFile.existsSync()
                     # in case no .json is there we have to run external analyser
                     # run JAR first to generate json-s
-                    return @executor.execJar(jsonPath, textEditor).then =>
-                        return @readAndParseJson(textEditor, jsonPath)
+                    return @executor.execJar(jsonPath, textEditor).then(
+                        () => return @readAndParseJson(textEditor, jsonPath),
+                        () => return @_makeErrorMessage(null, jsonPath)
+                    )
                 else
                     return @readAndParseJson(textEditor, jsonPath)
 
@@ -179,8 +184,10 @@ class KtAdvanceScanner
             jsonFile = new File(jsonPath)
 
             if not jsonFile.existsSync()
-                @executor.execJar(jsonPath, null).then =>
-                    @readAndParseProjectMetrics(textEditor, jsonPath)
+                @executor.execJar(jsonPath, null).then(
+                    => @readAndParseProjectMetrics(textEditor, jsonPath),
+                    => @statsView.errorMessage.text('process failed')
+                )
             else
                 @readAndParseProjectMetrics(textEditor, jsonPath)
 
