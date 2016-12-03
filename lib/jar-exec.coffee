@@ -6,6 +6,8 @@ VERSION = "5.5.8"
 
 class KtAdvanceJarExecutor
     javaExecutablePath: ''
+    verboseLogging: false
+
     constructor: ->
 
         @subscriptions = new CompositeDisposable
@@ -14,6 +16,15 @@ class KtAdvanceJarExecutor
                 (newValue) => (
                     @javaExecutablePath = newValue.trim()
                     console.log 'javaExecutablePath has changed:' + @javaExecutablePath
+                )
+
+        )
+
+        @subscriptions.add(
+            atom.config.observe 'atom-kt-advance.verboseLogging',
+                (newValue) => (
+                    @verboseLogging = newValue
+                    console.log 'verboseLogging has changed:' + @verboseLogging
                 )
 
         )
@@ -57,14 +68,17 @@ class KtAdvanceJarExecutor
                 return root
         return false
 
-    stdout: (outputChunk) ->
-        outputLines=outputChunk.split('\n')
-        for output in outputLines
-            if output.startsWith('ERROR')
-                console.error (output)
-            else if output.startsWith('WARN')
-                console.warn (output)
-            else
-                console.log (output)
+    stdout: (outputChunk) =>
+        if @verboseLogging
+            outputLines=outputChunk.split('\n')
+            for output in outputLines
+                if output.startsWith('ERROR')
+                    console.error (output)
+                else if output.startsWith('WARN')
+                    console.warn (output)
+                else
+                    console.log (output)
+        else
+            return
 
 module.exports = {KtAdvanceJarExecutor,VERSION}
