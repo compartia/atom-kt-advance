@@ -1,0 +1,14 @@
+'menu': [
+  {
+    'label': 'Packages'
+    'submenu': [
+      'label': 'KT Advance'
+      'submenu': [
+        {
+          'label': 'Toggle Metrics Panel'
+          'command': 'atom-kt-advance:toggleSidePanel'
+        }
+      ]
+    ]
+  }
+]
