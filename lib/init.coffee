@@ -12,6 +12,12 @@ module.exports =
             title: 'Full path to the java executable'
             type: 'string'
 
+        verboseLogging:
+            default: 'false'
+            title: 'Verbose logging'
+            description: 'Log debug information to console'
+            type: 'boolean'
+
         violationsOnly:
             default: true
             title: 'Show proven violations only'
@@ -44,7 +50,10 @@ module.exports =
         @model = new StatsModel
         @view.setModel @model
 
-        @toggleSidePanel()
+        @sidepanel = atom.workspace.addRightPanel item: @view
+
+
+        # @toggleSidePanel()
 
         KtAdvanceScanner = require './scanner'
         KtEditorsRegistry = require './editors-reg'
@@ -83,6 +92,9 @@ module.exports =
             )
         )
 
+        atom.commands.add 'atom-text-editor',
+            'atom-kt-advance:toggleSidePanel': (event) => @toggleSidePanel()
+
         console.log 'activated'
 
 
@@ -91,9 +103,13 @@ module.exports =
         console.log('AtomKtAdvance was toggled!')
 
     toggleSidePanel: ->
-        console.log('show/hide panel')
-        if !@sidepanel?
-            @sidepanel = atom.workspace.addRightPanel item: @view
+
+        Promise.resolve(@sidepanel).then (panel) ->
+            if panel.isVisible()
+                panel.hide()
+            else
+                panel.show()
+
 
     provideLinter: -> @scanner
 
