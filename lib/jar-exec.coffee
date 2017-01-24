@@ -1,7 +1,7 @@
 {BufferedProcess, CompositeDisposable} = require 'atom'
 path = require 'path'
 
-VERSION = "5.5.8"
+VERSION = "5.6.0"
 
 
 class KtAdvanceJarExecutor
