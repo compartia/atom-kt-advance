@@ -25,20 +25,20 @@ Download the `atom-kt-advance` project code from [https://github.com/compartia/a
 
 ### Statistics Panel
 By pressing <kbd>ctrl</kbd>+<kbd>alt</kbd>+<kbd>l</kbd> you may hide/show the side Statistics Panel.
-![Image](https://github.com/compartia/atom-kt-advance/blob/master/screenshots/view-stats.png)
+![Image](/screenshots/view-stats.png)
 
 
 ### Debugging and Settings.
 1. Raise Atom's Developer's Tools Console (e.g. &#8984;+
 &#8997;+<kbd>i</kbd> on a Mac) and confirm the line logged `kt-advance: activate`.  This indicates a successful launch.  Upon activation the plugin spawns a Java process to scan the C project for the `ch_analysis` directory.  When the plugin's scanner has completed you should see new or updated files in the `kt_analysis_export.<version>` directory.
 <br><br>
-![Image](https://github.com/compartia/atom-kt-advance/blob/master/screenshots/plugin-activate.png)
+![Image](/screenshots/plugin-activate.png)
 <br><br>
 1. Open a C file and save it (e.g. &#8984;+<kbd>S</kbd> on a Mac) in order to initiate a rescan (`linter` is triggered every time a C file is saved).
 <br><br>
-![Image](https://github.com/compartia/atom-kt-advance/blob/master/screenshots/violation-ppo-not-null.png)
+![Image](/screenshots/violation-ppo-not-null.png)
 2. To see more detailed output of scanning process, you may enable Verbose Logging option via Atom Settings screen .
-![Image](https://github.com/compartia/atom-kt-advance/blob/master/screenshots/settings.png)
+![Image](/screenshots/settings.png)
 3. Because there could be huge number of Open Proof Oblications reported in a large C project, only proven violations are shown by default. To see all issues, one may disable 'Shown proven violation only' option.
 
 ## Dependencies
