@@ -1,4 +1,9 @@
 {File, CompositeDisposable} = require 'atom'
+{XmlReader} = require 'xml-kt-advance/lib/xml/xml_reader'
+{FunctionsMap} = require 'xml-kt-advance/lib/xml/xml_types'
+{ ProgressTracker, ProgressTrackerDummie } = require 'xml-kt-advance/lib/common/util';
+
+
 
 fs = require 'fs'
 path = require 'path'
@@ -21,6 +26,10 @@ class KtAdvanceScanner
 
     registry: null
     executor: null
+    xmlReader: null
+
+    proofObligations :[]
+    assumptions : []
 
     messagesByFile:{}
 
@@ -35,6 +44,7 @@ class KtAdvanceScanner
         console.log 'contructing kt-scanner'
         @registry = _registry
         @executor = new KtAdvanceJarExecutor()
+        @xmlReader = new XmlReader()
 
         @subscriptions = new CompositeDisposable
         @subscriptions.add(
@@ -147,30 +157,37 @@ class KtAdvanceScanner
         return []
 
     _lint: (textEditor) =>
-        filePath = textEditor.getPath()
+        pth = @_projectPath(textEditor)
+        @statsModel.file_key = pth
 
-        if not @accept(filePath)
-            return []
+        @statsView.update()
 
-        else
-            try
-                jsonPath = @getJsonPath(textEditor)
-                jsonFile = new File(jsonPath)
+        return []
 
-                if not jsonFile.existsSync()
-                    # in case no .json is there we have to run external analyser
-                    # run JAR first to generate json-s
-                    return @executor.execJar(jsonPath, textEditor).then(
-                        () => return @readAndParseJson(textEditor, jsonPath),
-                        () => return @_makeErrorMessage(null, jsonPath)
-                    )
-                else
-                    return @readAndParseJson(textEditor, jsonPath)
+        # filePath = textEditor.getPath()
 
-            catch e
-                console.error(e.message)
-                console.error(e.stack)
-                return @_makeErrorMessage(e, filePath)
+        # if not @accept(filePath)
+        #     return []
+
+        # else
+        #     try
+        #         jsonPath = @getJsonPath(textEditor)
+        #         jsonFile = new File(jsonPath)
+
+        #         if not jsonFile.existsSync()
+        #             # in case no .json is there we have to run external analyser
+        #             # run JAR first to generate json-s
+        #             return @executor.execJar(jsonPath, textEditor).then(
+        #                 () => return @readAndParseJson(textEditor, jsonPath),
+        #                 () => return @_makeErrorMessage(null, jsonPath)
+        #             )
+        #         else
+        #             return @readAndParseJson(textEditor, jsonPath)
+
+        #     catch e
+        #         console.error(e.message)
+        #         console.error(e.stack)
+        #         return @_makeErrorMessage(e, filePath)
 
 
     scanProject:(textEditor) ->
@@ -180,32 +197,68 @@ class KtAdvanceScanner
                 'No ch_analysis dir found under ' + @_projectPath(textEditor))
 
         else
-            jsonPath =  path.join ktDir, KT_JSON_DIR,  ('__project__.json')
-            jsonFile = new File(jsonPath)
+            
+            tracker = new ProgressTrackerDummie()
+            
+            readFunctionsMapTracker = tracker.getSubtaskTracker(10, 'Reading functions map (*._cfile.xml)')
+            readDirTracker = tracker.getSubtaskTracker(90, 'Reading Proof Obligations data');
+            
 
-            if not jsonFile.existsSync()
-                @executor.execJar(jsonPath, null).then(
-                    => @readAndParseProjectMetrics(textEditor, jsonPath),
-                    => @statsView.errorMessage.text('process failed')
-                )
-            else
-                @readAndParseProjectMetrics(textEditor, jsonPath)
+            @xmlReader.readFunctionsMap(path.dirname(ktDir), readFunctionsMapTracker).then(
+                (functions) => 
+                    console.info('reading functions map complete. Functions:' + functions.length)
+                    functionsMap = new FunctionsMap(functions)
+
+                    xmlAnalysis = @xmlReader.readDir(ktDir, functionsMap, readDirTracker)
+
+                    return xmlAnalysis
+                ,
+                () => return @_makeErrorMessage(null, ktDir)
+            ).then(
+                (analysis) =>
+                    console.info('reading PO data complete. PPOs:' + analysis.ppos.length)
+                    console.info('reading PO data complete. SPOs:' + analysis.spos.length)
+                    @onAnalysisReady(textEditor, analysis)
+                    return               
+            ).catch(
+                (e)=> return @_makeErrorMessage(e, ktDir)
+            )          
 
     _projectPath:(textEditor)->
+        return if not textEditor?
         rr = atom.project.relativizePath(textEditor.getPath())
-        return rr[0]
+        return rr[1]
+    
 
-    readAndParseProjectMetrics:(textEditor, jsonPath) ->
+    onAnalysisReady:(textEditor, analysis) ->
+        @proofObligations =  analysis.ppos.concat(analysis.spos);
+        @assumptions = analysis.apis;
+
+        # data = @buildStats( )
+
         projectPath = @_projectPath(textEditor)
+        @statsModel.build(@proofObligations, projectPath)
 
-        data = @readJson(jsonPath)
-
-        data.measures.file_title = ""
-        data.measures.scope = "poject"
-        @statsModel.setMeasures(projectPath, data.measures)
-        @statsModel.file_key = projectPath
+        
+        # data.measures.scope = "poject"
+        
+        # @statsModel.setMeasures(projectPath, data.measures)
+        # @statsModel.file_key = projectPath
         @statsView.update()
-        # @statsModel.file_title=projectPath
+
+        return
+
+    # readAndParseProjectMetrics:(textEditor, jsonPath) ->
+    #     projectPath = @_projectPath(textEditor)
+
+    #     data = @readJson(jsonPath)
+
+    #     data.measures.file_title = ""
+    #     data.measures.scope = "poject"
+    #     @statsModel.setMeasures(projectPath, data.measures)
+    #     @statsModel.file_key = projectPath
+    #     @statsView.update()
+    #     # @statsModel.file_title=projectPath
 
     readJson :(jsonPath) ->
         json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })

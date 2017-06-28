@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "atom-package-deps": "^2.0.3",
-    "space-pen": "^5.1.2"
+    "space-pen": "^5.1.2",
+    "xml-kt-advance": "^0.2.1"
   },
   "providedServices": {
     "linter": {
