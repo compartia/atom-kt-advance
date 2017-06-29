@@ -1,23 +1,21 @@
 {File, CompositeDisposable} = require 'atom'
+{getChDir} = require 'xml-kt-advance/lib/common/fs'
 {XmlReader} = require 'xml-kt-advance/lib/xml/xml_reader'
 {FunctionsMap} = require 'xml-kt-advance/lib/xml/xml_types'
+{ MapOfLists } = require 'xml-kt-advance/lib/common/collections'
 { ProgressTracker, ProgressTrackerDummie } = require 'xml-kt-advance/lib/common/util';
 
 
-
+_ = require 'lodash'
 fs = require 'fs'
 path = require 'path'
-# moment= require 'moment'
-
-{KtAdvanceJarExecutor,VERSION} = require './jar-exec'
-
 KtAdvanceMarkersLayer = require './markers-layer'
 Htmler = require './html-helper'
 
 
-KT_JSON_DIR='kt_analysis_export_'+VERSION
 
 class KtAdvanceScanner
+    scannningPromisePending:false
 
     grammarScopes: ['source.c', 'source.h', 'source.cpp', 'source.hpp']
     scope: 'file'
@@ -25,7 +23,6 @@ class KtAdvanceScanner
     lintOnFly: false # Only lint on save
 
     registry: null
-    executor: null
     xmlReader: null
 
     proofObligations :[]
@@ -43,7 +40,6 @@ class KtAdvanceScanner
     constructor: (_registry) ->
         console.log 'contructing kt-scanner'
         @registry = _registry
-        @executor = new KtAdvanceJarExecutor()
         @xmlReader = new XmlReader()
 
         @subscriptions = new CompositeDisposable
@@ -57,34 +53,10 @@ class KtAdvanceScanner
         )
 
 
-
     findKtAlaysisDirLocation:(textEditor) ->
         filePath = textEditor.getPath()
-        parent = path.dirname(filePath)
+        return getChDir(filePath)
 
-        k=0
-        # TODO: test on Wintel
-        while parent!=null && parent!='' && (parent?) && parent!='\\' && parent!='/' && k<100
-            k++
-            # TODO: make 'ch_analysis' configurable
-            dir = new File(path.join parent, 'ch_analysis')
-            if dir.existsSync()
-                return parent
-
-            parent = path.dirname(parent)
-
-
-        return null
-
-    getJsonPath:(textEditor) ->
-        filePath = textEditor.getPath()
-        ktDir = @findKtAlaysisDirLocation(textEditor)
-        if ktDir?
-            relative = path.relative(ktDir, filePath)
-            file = path.join ktDir, KT_JSON_DIR,  (relative + '.json')
-            return file
-        else
-            return null
 
 
 
@@ -99,13 +71,13 @@ class KtAdvanceScanner
     scan: (textEditor) ->
         messages = @_lint(textEditor)
 
-        Promise.resolve(messages).then (value) =>
-            @_submitMessages(value, textEditor)
+        Promise.resolve(messages).then (msgs) =>
+            @_submitMessages(msgs, textEditor)
 
     ### Sends issue-related messages into linter interface ###
     _submitMessages: (fileMessages, textEditor) ->
         @messagesByFile[textEditor.getPath()] = fileMessages
-        messages = @_unwrapMessages()
+        messages = @_unwrapMessages(@messagesByFile)
 
         if not @indieLinter?
             console.warn 'scannning before linter is ready!'
@@ -117,11 +89,12 @@ class KtAdvanceScanner
             @indieLinter.setMessages(@_unwrapMessages(@messagesByFile))
 
 
-    _unwrapMessages: () ->
+    _unwrapMessages: (messagesByFile) ->
         messages=[]
-        for fileName, msgs of @messagesByFile
-            for msg in msgs
-                messages.push(msg)
+        for fileName, msgs of messagesByFile
+            if msgs?
+                for msg in msgs
+                    messages.push(msg)
 
         return messages
 
@@ -157,55 +130,61 @@ class KtAdvanceScanner
         return []
 
     _lint: (textEditor) =>
-        pth = @_projectPath(textEditor)
-        @statsModel.file_key = pth
+        _stats = @statsModel
+        _statsView = @statsView
+        messages=[]
+        markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
 
-        @statsView.update()
+        onScanReady = (textEditor)=>
+            relativePath = @_projectPath(textEditor)
+            try
+                messages = @collectMesages(textEditor, markersLayer)
+            catch err
+                console.error err
+                console.error err.stack
 
-        return []
-
-        # filePath = textEditor.getPath()
-
-        # if not @accept(filePath)
-        #     return []
-
-        # else
-        #     try
-        #         jsonPath = @getJsonPath(textEditor)
-        #         jsonFile = new File(jsonPath)
-
-        #         if not jsonFile.existsSync()
-        #             # in case no .json is there we have to run external analyser
-        #             # run JAR first to generate json-s
-        #             return @executor.execJar(jsonPath, textEditor).then(
-        #                 () => return @readAndParseJson(textEditor, jsonPath),
-        #                 () => return @_makeErrorMessage(null, jsonPath)
-        #             )
-        #         else
-        #             return @readAndParseJson(textEditor, jsonPath)
-
-        #     catch e
-        #         console.error(e.message)
-        #         console.error(e.stack)
-        #         return @_makeErrorMessage(e, filePath)
+            _stats.file_key = relativePath
+            _statsView.update()
+            return messages
 
 
-    scanProject:(textEditor) ->
+        messages = @scanProject(textEditor, onScanReady)
+        return messages
+
+
+
+    scanProject:(textEditor, onReady=@onAnalysisReady) ->
+        if (not @proofObligations?) || (!@proofObligations.length)
+            return @_scanProjectImpl(textEditor, onReady)
+        else
+            try
+                return onReady(textEditor)
+            catch err
+                console.error(err)
+
+
+    _scanProjectImpl:(textEditor, onReady=@onAnalysisReady) ->
+        if @scannningInProgress
+            return
+
         ktDir = @findKtAlaysisDirLocation(textEditor)
         if not ktDir?
             @statsView.errorMessage.text(
                 'No ch_analysis dir found under ' + @_projectPath(textEditor))
 
         else
-            
+            if @scannningPromisePending
+                return []
+
+            @scannningPromisePending=true
+
             tracker = new ProgressTrackerDummie()
-            
             readFunctionsMapTracker = tracker.getSubtaskTracker(10, 'Reading functions map (*._cfile.xml)')
             readDirTracker = tracker.getSubtaskTracker(90, 'Reading Proof Obligations data');
-            
+
 
             @xmlReader.readFunctionsMap(path.dirname(ktDir), readFunctionsMapTracker).then(
-                (functions) => 
+                (functions) =>
                     console.info('reading functions map complete. Functions:' + functions.length)
                     functionsMap = new FunctionsMap(functions)
 
@@ -218,34 +197,31 @@ class KtAdvanceScanner
                 (analysis) =>
                     console.info('reading PO data complete. PPOs:' + analysis.ppos.length)
                     console.info('reading PO data complete. SPOs:' + analysis.spos.length)
-                    @onAnalysisReady(textEditor, analysis)
-                    return               
+                    # @onAnalysisReady(textEditor, analysis)
+
+                    @proofObligations = analysis.ppos.concat(analysis.spos);
+                    @assumptions = analysis.apis;
+                    @statsModel.build(@proofObligations, @_projectPath(textEditor))
+
+                    ret=null
+                    if onReady?
+                        ret=onReady(textEditor, analysis)
+
+                    @scannningPromisePending=false
+                    return ret
             ).catch(
-                (e)=> return @_makeErrorMessage(e, ktDir)
-            )          
+                (e)=>
+                    @scannningPromisePending=false
+                    return @_makeErrorMessage(e, ktDir)
+            )
 
     _projectPath:(textEditor)->
         return if not textEditor?
         rr = atom.project.relativizePath(textEditor.getPath())
         return rr[1]
-    
 
-    onAnalysisReady:(textEditor, analysis) ->
-        @proofObligations =  analysis.ppos.concat(analysis.spos);
-        @assumptions = analysis.apis;
 
-        # data = @buildStats( )
-
-        projectPath = @_projectPath(textEditor)
-        @statsModel.build(@proofObligations, projectPath)
-
-        
-        # data.measures.scope = "poject"
-        
-        # @statsModel.setMeasures(projectPath, data.measures)
-        # @statsModel.file_key = projectPath
-        @statsView.update()
-
+    onAnalysisReady:(textEditor) ->
         return
 
     # readAndParseProjectMetrics:(textEditor, jsonPath) ->
@@ -259,31 +235,6 @@ class KtAdvanceScanner
     #     @statsModel.file_key = projectPath
     #     @statsView.update()
     #     # @statsModel.file_title=projectPath
-
-    readJson :(jsonPath) ->
-        json = fs.readFileSync(jsonPath, { encoding: 'utf-8' })
-        return JSON.parse(json)
-
-
-    ###
-        Reads data from given .json file and converts
-        it to array of linter messages
-    ###
-    readAndParseJson :(textEditor, jsonPath) ->
-        try
-            data = @readJson(jsonPath)
-
-            @parseMetrics(textEditor, data)
-
-            markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
-            messages = @collectMesages(data, textEditor.getPath(), markersLayer)
-
-            return messages
-
-        catch e
-            console.error (e.message)
-            console.error (e.stack)
-            return @_makeErrorMessage(e, textEditor.getPath())
 
     parseMetrics: (textEditor, data) ->
         data.measures.line_count = textEditor.getLineCount()
@@ -301,7 +252,7 @@ class KtAdvanceScanner
 
             byRegFiltered = []
             for issue in issues
-                if 'VIOLATION' == issue.state or !@violationsOnly
+                if 'VIOLATION' == issue.stateName or !@violationsOnly
                     byRegFiltered.push issue
 
             if byRegFiltered.length>0
@@ -310,30 +261,35 @@ class KtAdvanceScanner
         return filtered
 
 
-    collectMesages:(data, filePath, markersLayer) ->
+    collectMesages:(textEditor, markersLayer) ->
         messages = []
-        issuesByRegions = @filterIssues data.posByKey.map
+        issuesByFile = _.groupBy(@proofObligations, "file")
+        # issuesByRegions = @filterIssues data.posByKey.map
 
+        filePath=textEditor.getPath()
+        relativePath = @_projectPath(textEditor);
+        fileIssues = issuesByFile[relativePath];
 
-        file=new File(filePath)
-        digest1 =  file.getDigestSync()
-        digest2 =  data.header.digest
+        fileIssuesByLine = _.groupBy(fileIssues, "line")
 
-        obsolete = (digest1!=digest2)
-        if obsolete
-            console.log 'file digest differs: ' + digest1 + ' vs ' + digest2
+        # file=new File(filePath)
+        # digest1 =  file.getDigestSync()
+        # digest2 =  data.header.digest
 
-            warning = {
-                type: 'warning'
-                filePath: filePath
-                text: 'File digest differs from what was ananlysed by KT-Advance. Marking all issues as obsolete. Please re-run the analyser'
-            }
-            messages.push warning
+        # obsolete = (digest1!=digest2)
+        # if obsolete
+        #     console.log 'file digest differs: ' + digest1 + ' vs ' + digest2
 
+        #     warning = {
+        #         type: 'warning'
+        #         filePath: filePath
+        #         text: 'File digest differs from what was ananlysed by KT-Advance. Marking all issues as obsolete. Please re-run the analyser'
+        #     }
+        #     messages.push warning
 
-        for key, issues of issuesByRegions
+        obsolete = false
+        for key, issues of fileIssuesByLine
             if issues?
-
 
                 #in case there are several messages bound to the same region,
                 #linter cannot display all of them in a pop-up bubble, so we
@@ -345,11 +301,11 @@ class KtAdvanceScanner
                     filePath: filePath
                     range: collapsed.textRange
                     html: collapsed.message
-                    time: collapsed.time
+                    # time: collapsed.time
                 }
 
                 for issue in issues
-                    markersLayer.putMessage issue.referenceKey, msg
+                    markersLayer.putMessage issue.key, msg
 
                 messages.push(msg)
 
@@ -357,12 +313,12 @@ class KtAdvanceScanner
 
 
     ###
-        in case there are several messages bound to the same region,
-        linter cannot display all of them in a pop-up bubble, so we
-        have to aggregate multiple messages into single one ###
+    in case there are several messages bound to the same region,
+    linter cannot display all of them in a pop-up bubble, so we
+    have to aggregate multiple messages into single one ###
     collapseIssues:(issues, markersLayer, obsolete) ->
         txt=''
-        state = if issues.length>1 then 'multiple' else issues[0].state
+        state = if issues.length>1 then 'multiple' else issues[0].stateName
         i=0
         for issue in issues
             markedLinks = @issueToString(
@@ -384,11 +340,8 @@ class KtAdvanceScanner
             #XXX: per issue time!! or use minimal
             # linkedMarkerIds:markers
             #they all have same text range, so just take 1st
-            textRange: markersLayer.getMarkerRange(issues[0].referenceKey, issues[0].textRange)
+            textRange: markersLayer.getMarkerRange(issues[0].key, issues[0].location.textRange)
         }
-
-
-
 
 
 
@@ -396,22 +349,28 @@ class KtAdvanceScanner
         message = ''
         attrs = ''
 
-        attrs += Htmler.wrapAttr('data-marker-id', issue.referenceKey)
-        # attrs += Htmler.wrapAttr('data-time', issue.time)
-        styleAddon = if obsolete then ' crossed' else ''
-        if addState or obsolete
-            message += Htmler.bage(issue.state.toLowerCase()+styleAddon, issue.state) + ' '
-        # message += Htmler.bage('obsolete', 'obsolete') + ' '
-        levelBageStyle='level'+ styleAddon
-        message += Htmler.bage(levelBageStyle, issue.level) + ' '
-        message += Htmler.bage(issue.state.toLowerCase(), issue.predicateType) + ' '
-        message += issue.shortDescription
-        message += Htmler.wrapTag '', 'span', attrs
+        try
+            attrs += Htmler.wrapAttr('data-marker-id', issue.key)
+            # attrs += Htmler.wrapAttr('data-time', issue.time)
+            styleAddon = if obsolete then ' crossed' else ''
+            if addState or obsolete
+                message += Htmler.bage(issue.stateName.toLowerCase()+styleAddon, issue.stateName) + ' '
+            # message += Htmler.bage('obsolete', 'obsolete') + ' '
+            levelBageStyle='level'+ styleAddon
+            message += Htmler.bage(levelBageStyle, issue.level) + ' '
+            message += Htmler.bage(issue.stateName.toLowerCase(), issue.predicate) + ' '
+            message += issue.shortDescription
+            message += Htmler.wrapTag '', 'span', attrs
 
-        markedLinks= @_assumptionsToString(issue, markersLayer)
-        message += markedLinks
+            markedLinks= @_assumptionsToString(issue, markersLayer)
+            message += markedLinks
+
+        catch err
+            console.log err
 
         return message
+
+
 
     _assumptionsToString: (issue , markersLayer)->
         references = issue.references
@@ -423,10 +382,10 @@ class KtAdvanceScanner
             list=''
             for assumption in references
                 list += '<br>'
-                markedLink = @_linkAssumption(assumption, markersLayer, issue.referenceKey)
+                markedLink = @_linkAssumption(assumption, markersLayer, issue.key)
                 list += markedLink[1]
 
-            message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.referenceKey)
+            message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
 
         return message
 
@@ -436,7 +395,7 @@ class KtAdvanceScanner
         file = path.join dir, assumption.file #TODO: make properly relative
 
         marker = markersLayer.markLinkTargetRange(
-            assumption.referenceKey+'-lnk',
+            assumption.key+'-lnk',
             assumption.textRange,
             assumption.message,
             bundleId)
@@ -458,7 +417,7 @@ class KtAdvanceScanner
         attrs = ' '
         # attrs += Htmler.wrapAttr('href', '#')
         attrs += Htmler.wrapAttr('id', 'kt-assumption-link-src')
-        attrs += Htmler.wrapAttr('data-marker-id', assumption.referenceKey)
+        attrs += Htmler.wrapAttr('data-marker-id', assumption.key)
         # attrs += Htmler.wrapAttr('class', 'kt-assumption-link-src kt-assumption-'+marker.id)
         attrs += Htmler.wrapAttr('line', assumption.textRange[0][0])
         attrs += Htmler.wrapAttr('col', assumption.textRange[0][1])

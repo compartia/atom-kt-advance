@@ -2,14 +2,14 @@ module.exports = Htmler =
 
 
     rangeToHtml:(range) ->
-        'line:'+(range.start.row+1)+' col:'+range.start.column
+        'line:'+(range[0][0])+' col:'+range[0][1]
 
     wrapAttr: (attr, val) -> attr + '="' + val + '"'+' '
 
     wrapTag: (str, tag, attr) ->
         attrAdd = ' '+attr
         if not attr?
-            attrAdd = ''
+            attrAdd = '' 
 
         '<' + tag + attrAdd + '>' + str + '</' + tag + '>'
 

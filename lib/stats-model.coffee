@@ -25,25 +25,26 @@ class StatsModel
         delete @measuresByFile[file]
 
     _level:(po) =>
-        if po.level == "primary" 
-            return  "ppo" 
+        if po.level == "primary"
+            return  "ppo"
         return "spo"
+
     
     _state:(po) =>
-        return po.stateName 
+        return po.stateName
 
     _incKey:(measures, key, inc=1) =>
         if !measures[key]
             measures[key] = 0
         measures[key] = measures[key]+inc
-    
+
     build: (proofObligations, projectPath) =>
         @measuresByFile = {}
 
         pMetrics = @getMeasures(projectPath)
         @file_key = projectPath
         for po in proofObligations
-            
+
             m = @getMeasures(po.file);
 
             key = "kt_"
@@ -51,7 +52,7 @@ class StatsModel
 
             @_incKey(m, key)
             @_incKey(pMetrics, key)
-            
+
             key = key + @_state(po)
             @_incKey(m, key)
             @_incKey(pMetrics, key)

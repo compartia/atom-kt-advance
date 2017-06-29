@@ -14,11 +14,11 @@ class KtAdvanceMarkersLayer
         @_addMarkerLayer(editor)
 
 
-    putMessage: (referenceKey, message) ->
-        @messageByKey[referenceKey] = message
+    putMessage: (key, message) ->
+        @messageByKey[key] = message
         marker = @_markMsgRange (message)
-        @messageKeyByMarker[marker.id] = referenceKey
-        @markersByReferenceKey[referenceKey] = marker
+        @messageKeyByMarker[marker.id] = key
+        @markersByReferenceKey[key] = marker
         return marker
 
     ### adds a marker and a decoraion to where an assumption points to
@@ -49,16 +49,16 @@ class KtAdvanceMarkersLayer
         marker = @markerLayer.markBufferRange(message.range)
 
         marker.onDidChange (event) =>
-            referenceKey = @messageKeyByMarker[marker.id]
-            msg = @messageByKey[referenceKey]
+            key = @messageKeyByMarker[marker.id]
+            msg = @messageByKey[key]
             msg.range = marker.getBufferRange()
             # TODO: update linter UI, rendered messages
 
         @markers.push marker
         return marker
 
-    getMarkerRange: (referenceKey, fallbackRange) ->
-        marker = @markersByReferenceKey[referenceKey]
+    getMarkerRange: (key, fallbackRange) ->
+        marker = @markersByReferenceKey[key]
 
         if marker
             return marker.getBufferRange()
@@ -97,8 +97,8 @@ class KtAdvanceMarkersLayer
             file = link.getAttribute('uri')
             link.onclick = () ->
                 options = {
-                    initialLine: range.start.row
-                    initialColumn: range.start.column
+                    initialLine: range[0][0]
+                    initialColumn: range[0][1]
                 }
                 atom.workspace.open file, options
 
