@@ -1,4 +1,5 @@
 {File, CompositeDisposable} = require 'atom'
+
 {getChDir} = require 'xml-kt-advance/lib/common/fs'
 {XmlReader} = require 'xml-kt-advance/lib/xml/xml_reader'
 {FunctionsMap} = require 'xml-kt-advance/lib/xml/xml_types'
@@ -200,6 +201,10 @@ class KtAdvanceScanner
                     # @onAnalysisReady(textEditor, analysis)
 
                     @proofObligations = analysis.ppos.concat(analysis.spos);
+                    @proofObligations = _.filter(
+                        @proofObligations, 
+                        (x)->x.stateName!='discharged')
+
                     @assumptions = analysis.apis;
                     @statsModel.build(@proofObligations, @_projectPath(textEditor))
 
@@ -359,7 +364,7 @@ class KtAdvanceScanner
             levelBageStyle='level'+ styleAddon
             message += Htmler.bage(levelBageStyle, issue.level) + ' '
             message += Htmler.bage(issue.stateName.toLowerCase(), issue.predicate) + ' '
-            message += issue.shortDescription
+            message += @_getIssueText(issue)
             message += Htmler.wrapTag '', 'span', attrs
 
             markedLinks= @_assumptionsToString(issue, markersLayer)
@@ -370,6 +375,15 @@ class KtAdvanceScanner
 
         return message
 
+    _getIssueText:(item)->
+        str=''
+        if item.predicateArgument?
+            str = str + '(' + item.predicateArgument + ') '
+        str = str + item.expression
+        if item.discharge? and item.discharge.message?
+            str = str + Htmler.wrapTag(item.discharge.message, 'small')
+        
+        return str
 
 
     _assumptionsToString: (issue , markersLayer)->
