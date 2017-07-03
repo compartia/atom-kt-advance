@@ -10,6 +10,8 @@
 _ = require 'lodash'
 fs = require 'fs'
 path = require 'path'
+commondir = require 'commondir'
+
 KtAdvanceMarkersLayer = require './markers-layer'
 Htmler = require './html-helper'
 
@@ -136,10 +138,15 @@ class KtAdvanceScanner
         messages=[]
         markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
 
-        onScanReady = (textEditor)=>
-            relativePath = @_projectPath(textEditor)
+        ktDir = @findKtAlaysisDirLocation(textEditor)
+
+        onScanReady = (analysis)=>            
+            fileAbsolutePath = textEditor.getPath()
+            sourceDir = commondir([ktDir, fileAbsolutePath])
+            relativePath = path.relative(sourceDir, fileAbsolutePath)
+
             try
-                messages = @collectMesages(textEditor, markersLayer)
+                messages = @collectMesages(textEditor, relativePath, markersLayer)
             catch err
                 console.error err
                 console.error err.stack
@@ -149,31 +156,35 @@ class KtAdvanceScanner
             return messages
 
 
-        messages = @scanProject(textEditor, onScanReady)
+        messages = @scanProject(ktDir, onScanReady)
         return messages
 
 
 
-    scanProject:(textEditor, onReady=@onAnalysisReady) ->
+    scanProject:(ktDir, onReady=@onAnalysisReady) ->
         if (not @proofObligations?) || (!@proofObligations.length)
-            return @_scanProjectImpl(textEditor, onReady)
+            return @_scanProjectImpl(ktDir, onReady)
         else
             try
-                return onReady(textEditor)
+                return onReady()
             catch err
                 console.error(err)
 
 
-    _scanProjectImpl:(textEditor, onReady=@onAnalysisReady) ->
+    _scanProjectImpl:(ktDir, onReady=@onAnalysisReady) ->
+
+        # projectPath = @_projectPath(textEditor);
+
         if @scannningInProgress
             return
 
-        ktDir = @findKtAlaysisDirLocation(textEditor)
+        
         if not ktDir?
             @statsView.errorMessage.text(
-                'No ch_analysis dir found under ' + @_projectPath(textEditor))
+                'No "ch_analysis" dir found')
+        
+        else                    
 
-        else
             if @scannningPromisePending
                 return []
 
@@ -198,19 +209,18 @@ class KtAdvanceScanner
                 (analysis) =>
                     console.info('reading PO data complete. PPOs:' + analysis.ppos.length)
                     console.info('reading PO data complete. SPOs:' + analysis.spos.length)
-                    # @onAnalysisReady(textEditor, analysis)
-
+ 
                     @proofObligations = analysis.ppos.concat(analysis.spos);
                     @proofObligations = _.filter(
                         @proofObligations, 
                         (x)->x.stateName!='discharged')
 
                     @assumptions = analysis.apis;
-                    @statsModel.build(@proofObligations, @_projectPath(textEditor))
+                    @statsModel.build(@proofObligations, projectPath)
 
                     ret=null
                     if onReady?
-                        ret=onReady(textEditor, analysis)
+                        ret = onReady(analysis)
 
                     @scannningPromisePending=false
                     return ret
@@ -222,6 +232,7 @@ class KtAdvanceScanner
 
     _projectPath:(textEditor)->
         return if not textEditor?
+
         rr = atom.project.relativizePath(textEditor.getPath())
         return rr[1]
 
@@ -266,13 +277,12 @@ class KtAdvanceScanner
         return filtered
 
 
-    collectMesages:(textEditor, markersLayer) ->
+    collectMesages:(textEditor, relativePath, markersLayer) ->
         messages = []
         issuesByFile = _.groupBy(@proofObligations, "file")
         # issuesByRegions = @filterIssues data.posByKey.map
 
-        filePath=textEditor.getPath()
-        relativePath = @_projectPath(textEditor);
+        filePath=textEditor.getPath()        
         fileIssues = issuesByFile[relativePath];
 
         fileIssuesByLine = _.groupBy(fileIssues, "line")
@@ -387,30 +397,57 @@ class KtAdvanceScanner
 
 
     _assumptionsToString: (issue , markersLayer)->
-        references = issue.references
         message = ''
-        if references? and references.length > 0
-            message +='<hr class="issue-split">'
-            message +=('assumptions: ' + references.length)
+        if issue.inputs? 
+            if issue.inputs.length==1
+                apiAssumption = issue.inputs[0]
+                dependentPOs = apiAssumption.outputs
 
-            list=''
-            for assumption in references
-                list += '<br>'
-                markedLink = @_linkAssumption(assumption, markersLayer, issue.key)
-                list += markedLink[1]
+                if dependentPOs? and dependentPOs.length > 0
+                    message +='<hr class="issue-split">'
+                    message +=('dependent POs: ' + dependentPOs.length)
 
-            message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
+                    list=''
+                    for dpo in dependentPOs
+                        list += '<br>'
+                        markedLink = @_linkAssumption(dpo, markersLayer, issue.key)
+                        list += markedLink[1]
+
+                    message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
+                
+
+            else
+                if issue.inputs.length>1
+                    console.error issue
 
         return message
 
-    _linkAssumption: (assumption, markersLayer, bundleId)->
+        # references = issue.inputs
+        # message = ''
+        # if references? and references.length > 0
+        #     message +='<hr class="issue-split">'
+        #     message +=('assumptions: ' + references.length)
 
-        dir = path.dirname markersLayer.editor.getPath()
-        file = path.join dir, assumption.file #TODO: make properly relative
+        #     list=''
+        #     for assumption in references
+        #         list += '<br>'
+        #         markedLink = @_linkAssumption(assumption, markersLayer, issue.key)
+        #         list += markedLink[1]
+
+        #     message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
+
+        # return message
+
+    _linkAssumption: (assumption, markersLayer, bundleId)->
+        projectDir = atom.project.getPaths()[0]
+        # dir = path.dirname markersLayer.editor.getPath()
+        file = path.join projectDir, assumption.file #TODO: make properly relative
 
         marker = markersLayer.markLinkTargetRange(
             assumption.key+'-lnk',
-            assumption.textRange,
+            [[assumption.line,0], [assumption.line,0]],
+            # assumption.textRange,
+            # XXX: assumption may not have a textRange
             assumption.message,
             bundleId)
 
@@ -433,8 +470,11 @@ class KtAdvanceScanner
         attrs += Htmler.wrapAttr('id', 'kt-assumption-link-src')
         attrs += Htmler.wrapAttr('data-marker-id', assumption.key)
         # attrs += Htmler.wrapAttr('class', 'kt-assumption-link-src kt-assumption-'+marker.id)
-        attrs += Htmler.wrapAttr('line', assumption.textRange[0][0])
-        attrs += Htmler.wrapAttr('col', assumption.textRange[0][1])
+        # if assumption.textRange
+        # XXX: assumption may not have a textRange
+        attrs += Htmler.wrapAttr('line', assumption.line)
+        attrs += Htmler.wrapAttr('col', 0)
+
         attrs += Htmler.wrapAttr('uri', file)
 
         list += Htmler.wrapTag message, 'span', attrs

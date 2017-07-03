@@ -1,4 +1,5 @@
 Htmler = require './html-helper'
+
 ### Manages per-editor message markers and decorations ###
 class KtAdvanceMarkersLayer
 
@@ -97,8 +98,8 @@ class KtAdvanceMarkersLayer
             file = link.getAttribute('uri')
             link.onclick = () ->
                 options = {
-                    initialLine: range[0][0]
-                    initialColumn: range[0][1]
+                    initialLine: range.start.row
+                    initialColumn: range.start.column
                 }
                 atom.workspace.open file, options
 

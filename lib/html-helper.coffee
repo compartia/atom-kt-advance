@@ -1,8 +1,17 @@
 module.exports = Htmler =
 
 
+    # rangeToHtml:(range) ->
+    #     'line:'+(range[0][0])+' col:'+range[0][1]
+    
     rangeToHtml:(range) ->
-        'line:'+(range[0][0])+' col:'+range[0][1]
+        if range?
+            if range.start?
+                return 'line:'+(range.start.row)+' col:'+range.start.column
+            
+            if range.length
+                return 'line:'+(range[0][0])+' col:'+range[0][1]
+        return ''
 
     wrapAttr: (attr, val) -> attr + '="' + val + '"'+' '
 
