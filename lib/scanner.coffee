@@ -147,7 +147,7 @@ class KtAdvanceScanner
             relativePath = path.relative(sourceDir, fileAbsolutePath)
 
             try
-                messages = @collectMesages(textEditor, markersLayer, [sourceDir, relativePath])
+                messages = @collectMesages(markersLayer, [sourceDir, relativePath])
             catch err
                 console.error err
                 console.error err.stack
@@ -269,16 +269,15 @@ class KtAdvanceScanner
         return filtered
 
 
-    collectMesages:(textEditor, markersLayer, paths) ->
+    collectMesages:(markersLayer, paths) ->
 
         sourceDir = paths[0]
         relativePath = paths[1]
+        filePath = path.join(sourceDir, relativePath)
 
         messages = []
         issuesByFile = _.groupBy(@proofObligations, "file")
-        # issuesByRegions = @filterIssues data.posByKey.map
 
-        # filePath = textEditor.getPath()        
         fileIssues = issuesByFile[relativePath];
 
         fileIssuesByLine = _.groupBy(fileIssues, "line")
@@ -298,8 +297,7 @@ class KtAdvanceScanner
         #     }
         #     messages.push warning
 
-        obsolete = false
-        filePath = path.join(sourceDir, relativePath)
+        obsolete = false        
         for key, issues of fileIssuesByLine
             if issues?
 
@@ -370,13 +368,16 @@ class KtAdvanceScanner
                 message += Htmler.bage(issue.stateName.toLowerCase()+styleAddon, issue.stateName) + ' '
             # message += Htmler.bage('obsolete', 'obsolete') + ' '
             levelBageStyle='level'+ styleAddon
-            message += Htmler.bage(levelBageStyle, issue.level) + ' '
+            message += Htmler.bage(levelBageStyle, issue.levelLabel) + ' '
             message += Htmler.bage(issue.stateName.toLowerCase(), issue.predicate) + ' '
             message += @_getIssueText(issue)
             message += Htmler.wrapTag '', 'span', attrs
 
-            markedLinks= @_assumptionsToString(issue, markersLayer, sourceDir)
-            message += markedLinks
+            try
+                markedLinks = @_assumptionsToString(issue, markersLayer, sourceDir)
+                message += markedLinks
+            catch err
+                console.log err
 
         catch err
             console.log err
@@ -403,15 +404,19 @@ class KtAdvanceScanner
 
                 if dependentPOs? and dependentPOs.length > 0
                     message +='<hr class="issue-split">'
-                    message +=('dependent POs: ' + dependentPOs.length)
+                    message +=('dependent POs: ' + dependentPOs.length + ' ')
 
-                    list=''
+                    links = ''
+                    message +=  Htmler.bage(issue.stateName.toLowerCase(), apiAssumption.type) + ' '
+                    list = ''
                     for dpo in dependentPOs
                         list += '<br>'
                         markedLink = @_linkAssumption(dpo, markersLayer, issue.key, sourceDir)
                         list += markedLink[1]
 
-                    message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
+                    links += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
+
+                    message += Htmler.wrapTag links, 'div', Htmler.wrapAttr('class', 'po-links')
                 
 
             else
@@ -436,6 +441,7 @@ class KtAdvanceScanner
 
         # return message
 
+
     _linkAssumption: (assumption, markersLayer, bundleId, sourceDir)->
         # projectDir = atom.project.getPaths()[0]
         # dir = path.dirname markersLayer.editor.getPath()
@@ -446,7 +452,7 @@ class KtAdvanceScanner
             [[assumption.line,0], [assumption.line,0]],
             # assumption.textRange,
             # XXX: assumption may not have a textRange
-            assumption.message,
+            @_getIssueText(assumption),
             bundleId)
 
 
@@ -457,7 +463,7 @@ class KtAdvanceScanner
             Htmler.wrapAttr('id', 'kt-location')
         )
 
-        message += '&nbsp;&nbsp;'+assumption.message
+        message += '&nbsp;&nbsp;'+@_getIssueText(assumption)
         # message += ' line:' + (parseInt(assumption.textRange[0][0])+1)
         # message += ' col:' + assumption.textRange[0][1]
 
