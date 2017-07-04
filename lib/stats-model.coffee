@@ -4,6 +4,7 @@ module.exports =
 class StatsModel
     file_key: ''
     measuresByFile:{}
+    projectMetrics:{}
 
     getMeasures: (file_key) =>
         if file_key?
@@ -12,10 +13,10 @@ class StatsModel
                 return m
             else
                 m = {}
-                @measuresByFile[file_key]=m
+                @measuresByFile[file_key] = m
                 return m
         else
-            return {}
+            return @projectMetrics
 
     setMeasures: (file, _measures)=>
         @measuresByFile[file]=_measures
@@ -38,11 +39,11 @@ class StatsModel
             measures[key] = 0
         measures[key] = measures[key]+inc
 
-    build: (proofObligations, projectPath) =>
+    build: (proofObligations, sourceDir) =>
         @measuresByFile = {}
 
-        pMetrics = @getMeasures(projectPath)
-        @file_key = projectPath
+        @projectMetrics = @getMeasures(sourceDir)
+        @file_key = sourceDir
         for po in proofObligations
 
             m = @getMeasures(po.file);
@@ -51,15 +52,15 @@ class StatsModel
             key = key + @_level(po) + "_"
 
             @_incKey(m, key)
-            @_incKey(pMetrics, key)
+            @_incKey(@projectMetrics, key)
 
             key = key + @_state(po)
             @_incKey(m, key)
-            @_incKey(pMetrics, key)
+            @_incKey(@projectMetrics, key)
 
             for c in [0..2]
                 key='kt_' + @_level(po) + '_complexity_' + Complexitiy[c].toLowerCase()
                 @_incKey(m, key, po.complexity[c])
-                @_incKey(pMetrics, key, po.complexity[c])
+                @_incKey(@projectMetrics, key, po.complexity[c])
 
         return

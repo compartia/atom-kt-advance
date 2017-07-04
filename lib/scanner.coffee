@@ -139,14 +139,15 @@ class KtAdvanceScanner
         markersLayer = @registry.getOrMakeMarkersLayer(textEditor)
 
         ktDir = @findKtAlaysisDirLocation(textEditor)
+        fileAbsolutePath = textEditor.getPath()
+        sourceDir = commondir([ktDir, fileAbsolutePath])
 
         onScanReady = (analysis)=>            
-            fileAbsolutePath = textEditor.getPath()
-            sourceDir = commondir([ktDir, fileAbsolutePath])
+            
             relativePath = path.relative(sourceDir, fileAbsolutePath)
 
             try
-                messages = @collectMesages(textEditor, relativePath, markersLayer)
+                messages = @collectMesages(textEditor, markersLayer, [sourceDir, relativePath])
             catch err
                 console.error err
                 console.error err.stack
@@ -156,14 +157,14 @@ class KtAdvanceScanner
             return messages
 
 
-        messages = @scanProject(ktDir, onScanReady)
+        messages = @scanProject(ktDir, sourceDir, onScanReady)
         return messages
 
 
 
-    scanProject:(ktDir, onReady=@onAnalysisReady) ->
+    scanProject:(ktDir, sourceDir, onReady=@onAnalysisReady) ->
         if (not @proofObligations?) || (!@proofObligations.length)
-            return @_scanProjectImpl(ktDir, onReady)
+            return @_scanProjectImpl(ktDir, sourceDir, onReady)
         else
             try
                 return onReady()
@@ -171,9 +172,7 @@ class KtAdvanceScanner
                 console.error(err)
 
 
-    _scanProjectImpl:(ktDir, onReady=@onAnalysisReady) ->
-
-        # projectPath = @_projectPath(textEditor);
+    _scanProjectImpl:(ktDir, sourceDir, onReady=@onAnalysisReady) ->
 
         if @scannningInProgress
             return
@@ -216,7 +215,7 @@ class KtAdvanceScanner
                         (x)->x.stateName!='discharged')
 
                     @assumptions = analysis.apis;
-                    @statsModel.build(@proofObligations, projectPath)
+                    @statsModel.build(@proofObligations, sourceDir)
 
                     ret=null
                     if onReady?
@@ -229,13 +228,6 @@ class KtAdvanceScanner
                     @scannningPromisePending=false
                     return @_makeErrorMessage(e, ktDir)
             )
-
-    _projectPath:(textEditor)->
-        return if not textEditor?
-
-        rr = atom.project.relativizePath(textEditor.getPath())
-        return rr[1]
-
 
     onAnalysisReady:(textEditor) ->
         return
@@ -277,12 +269,16 @@ class KtAdvanceScanner
         return filtered
 
 
-    collectMesages:(textEditor, relativePath, markersLayer) ->
+    collectMesages:(textEditor, markersLayer, paths) ->
+
+        sourceDir = paths[0]
+        relativePath = paths[1]
+
         messages = []
         issuesByFile = _.groupBy(@proofObligations, "file")
         # issuesByRegions = @filterIssues data.posByKey.map
 
-        filePath=textEditor.getPath()        
+        # filePath = textEditor.getPath()        
         fileIssues = issuesByFile[relativePath];
 
         fileIssuesByLine = _.groupBy(fileIssues, "line")
@@ -303,13 +299,14 @@ class KtAdvanceScanner
         #     messages.push warning
 
         obsolete = false
+        filePath = path.join(sourceDir, relativePath)
         for key, issues of fileIssuesByLine
             if issues?
 
                 #in case there are several messages bound to the same region,
                 #linter cannot display all of them in a pop-up bubble, so we
                 #have to aggregate multiple messages into single one
-                collapsed = @collapseIssues(issues, markersLayer, obsolete)
+                collapsed = @collapseIssues(issues, markersLayer, obsolete, sourceDir)
 
                 msg = {
                     type: collapsed.state
@@ -331,7 +328,7 @@ class KtAdvanceScanner
     in case there are several messages bound to the same region,
     linter cannot display all of them in a pop-up bubble, so we
     have to aggregate multiple messages into single one ###
-    collapseIssues:(issues, markersLayer, obsolete) ->
+    collapseIssues:(issues, markersLayer, obsolete, sourceDir) ->
         txt=''
         state = if issues.length>1 then 'multiple' else issues[0].stateName
         i=0
@@ -340,7 +337,8 @@ class KtAdvanceScanner
                 issue
                 issues.length>1 #addState
                 markersLayer
-                obsolete)
+                obsolete
+                sourceDir)
 
             txt += markedLinks
             i++
@@ -360,7 +358,7 @@ class KtAdvanceScanner
 
 
 
-    issueToString:(issue, addState, markersLayer, obsolete)->
+    issueToString:(issue, addState, markersLayer, obsolete, sourceDir)->
         message = ''
         attrs = ''
 
@@ -377,7 +375,7 @@ class KtAdvanceScanner
             message += @_getIssueText(issue)
             message += Htmler.wrapTag '', 'span', attrs
 
-            markedLinks= @_assumptionsToString(issue, markersLayer)
+            markedLinks= @_assumptionsToString(issue, markersLayer, sourceDir)
             message += markedLinks
 
         catch err
@@ -396,7 +394,7 @@ class KtAdvanceScanner
         return str
 
 
-    _assumptionsToString: (issue , markersLayer)->
+    _assumptionsToString: (issue, markersLayer, sourceDir)->
         message = ''
         if issue.inputs? 
             if issue.inputs.length==1
@@ -410,7 +408,7 @@ class KtAdvanceScanner
                     list=''
                     for dpo in dependentPOs
                         list += '<br>'
-                        markedLink = @_linkAssumption(dpo, markersLayer, issue.key)
+                        markedLink = @_linkAssumption(dpo, markersLayer, issue.key, sourceDir)
                         list += markedLink[1]
 
                     message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
@@ -438,10 +436,10 @@ class KtAdvanceScanner
 
         # return message
 
-    _linkAssumption: (assumption, markersLayer, bundleId)->
-        projectDir = atom.project.getPaths()[0]
+    _linkAssumption: (assumption, markersLayer, bundleId, sourceDir)->
+        # projectDir = atom.project.getPaths()[0]
         # dir = path.dirname markersLayer.editor.getPath()
-        file = path.join projectDir, assumption.file #TODO: make properly relative
+        file = path.join sourceDir, assumption.file #TODO: make properly relative
 
         marker = markersLayer.markLinkTargetRange(
             assumption.key+'-lnk',
