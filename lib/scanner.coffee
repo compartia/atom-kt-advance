@@ -326,15 +326,11 @@ class KtAdvanceScanner
         return {
             start:
                 row: textRange[0][0]-1
-                column: textRange[0][1]
+                column: 1+textRange[0][1]
             end:
                 row: textRange[1][0]-1
-                column: textRange[1][1]
+                column: 1+textRange[1][1]
         } 
-
-    _correctLineNumbersArr:(textRange) ->
-        return [ [textRange[0][0]-1, textRange[0][1]] ,  [textRange[1][0]-1, textRange[1][1]] ]
-        
 
     ###
     in case there are several messages bound to the same region,
@@ -392,9 +388,11 @@ class KtAdvanceScanner
                 message += markedLinks
             catch err
                 console.log err
+                console.log err.stack
 
         catch err
             console.log err
+            console.log err.stack
 
         return message
 
@@ -402,7 +400,7 @@ class KtAdvanceScanner
         str=''
         if item.predicateArgument?
             str = str + '(' + item.predicateArgument + ') '
-        str = str + item.expression
+        str = str + item.expression + ' '
         if item.discharge? and item.discharge.message?
             str = str + Htmler.wrapTag(item.discharge.message, 'small')
         
@@ -424,11 +422,12 @@ class KtAdvanceScanner
                     message +=  Htmler.bage(issue.stateName.toLowerCase(), apiAssumption.type) + ' '
                     list = ''
                     for dpo in dependentPOs
-                        list += '<br>'
+                        list += '<li>'
                         markedLink = @_linkAssumption(dpo, markersLayer, issue.key, sourceDir)
                         list += markedLink[1]
+                        list += '</li>'
 
-                    links += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
+                    links += Htmler.wrapTag list, 'ul', Htmler.wrapAttr('class', 'links-'+issue.key)
 
                     message += Htmler.wrapTag links, 'div', Htmler.wrapAttr('class', 'po-links')
                 
@@ -456,42 +455,36 @@ class KtAdvanceScanner
         # return message
 
 
-    _linkAssumption: (assumption, markersLayer, bundleId, sourceDir)->
-        # projectDir = atom.project.getPaths()[0]
-        # dir = path.dirname markersLayer.editor.getPath()
-        file = path.join sourceDir, assumption.file #TODO: make properly relative
+    _linkAssumption: (dependentPO, markersLayer, bundleId, sourceDir)->
+        
+        file = path.join sourceDir, dependentPO.file 
+
+        dependentPORange = @_correctLineNumbers(dependentPO.location.textRange)
 
         marker = markersLayer.markLinkTargetRange(
-            assumption.key+'-lnk',
-            @_correctLineNumbersArr(assumption.location.textRange),
-            # assumption.textRange,
-            # XXX: assumption may not have a textRange
-            @_getIssueText(assumption),
+            dependentPO.key+'-lnk',
+            dependentPORange,
+            @_getIssueText(dependentPO),
             bundleId)
 
-
+        markerBufferRange = marker.getBufferRange()
         message = ''
         message += Htmler.wrapTag(
-            Htmler.rangeToHtml(marker.getBufferRange())
+            Htmler.rangeToHtml(markerBufferRange)
             'a'
             Htmler.wrapAttr('id', 'kt-location')
         )
 
-        message += '&nbsp;&nbsp;'+@_getIssueText(assumption)
-        # message += ' line:' + (parseInt(assumption.textRange[0][0])+1)
-        # message += ' col:' + assumption.textRange[0][1]
-
+        message += '&nbsp;&nbsp;'+@_getIssueText(dependentPO)
 
         list=''
         attrs = ' '
         # attrs += Htmler.wrapAttr('href', '#')
         attrs += Htmler.wrapAttr('id', 'kt-assumption-link-src')
-        attrs += Htmler.wrapAttr('data-marker-id', assumption.key)
-        # attrs += Htmler.wrapAttr('class', 'kt-assumption-link-src kt-assumption-'+marker.id)
-        # if assumption.textRange
-        # XXX: assumption may not have a textRange
-        attrs += Htmler.wrapAttr('line', assumption.line)
-        attrs += Htmler.wrapAttr('col', 0)
+        attrs += Htmler.wrapAttr('data-marker-id', dependentPO.key)
+        
+        attrs += Htmler.wrapAttr('line', dependentPORange.start.row)
+        attrs += Htmler.wrapAttr('col', dependentPORange.start.column)
 
         attrs += Htmler.wrapAttr('uri', file)
 

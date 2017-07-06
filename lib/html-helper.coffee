@@ -2,7 +2,7 @@ module.exports = Htmler =
 
     rangeToHtml:(range) ->
         if range?
-            return 'line:'+(range.start.row)+' col:'+range.start.column
+            return 'line:'+(1+range.start.row)+' col:'+range.start.column
         else
             return '-'
 
