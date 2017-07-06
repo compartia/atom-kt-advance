@@ -322,6 +322,20 @@ class KtAdvanceScanner
         return messages
 
 
+    _correctLineNumbers:(textRange) ->
+        return {
+            start:
+                row: textRange[0][0]-1
+                column: textRange[0][1]
+            end:
+                row: textRange[1][0]-1
+                column: textRange[1][1]
+        } 
+
+    _correctLineNumbersArr:(textRange) ->
+        return [ [textRange[0][0]-1, textRange[0][1]] ,  [textRange[1][0]-1, textRange[1][1]] ]
+        
+
     ###
     in case there are several messages bound to the same region,
     linter cannot display all of them in a pop-up bubble, so we
@@ -351,7 +365,7 @@ class KtAdvanceScanner
             #XXX: per issue time!! or use minimal
             # linkedMarkerIds:markers
             #they all have same text range, so just take 1st
-            textRange: markersLayer.getMarkerRange(issues[0].key, issues[0].location.textRange)
+            textRange: markersLayer.getMarkerRange(issues[0].key, @_correctLineNumbers(issues[0].location.textRange))
         }
 
 
@@ -449,7 +463,7 @@ class KtAdvanceScanner
 
         marker = markersLayer.markLinkTargetRange(
             assumption.key+'-lnk',
-            [[assumption.line,0], [assumption.line,0]],
+            @_correctLineNumbersArr(assumption.location.textRange),
             # assumption.textRange,
             # XXX: assumption may not have a textRange
             @_getIssueText(assumption),
