@@ -285,34 +285,36 @@ class KtAdvanceScanner
             if issues?
 
                 issuesByVar = _.groupBy(issues, "predicateArgument")
-                lineStr  = textEditor.lineTextForScreenRow(line) 
+                lineStr  = textEditor.lineTextForBufferRow(line-1) 
 
                 if lineStr?
                     for varname, varissues of issuesByVar
                         textRange = @_findAndFixVariableColumn(varname, lineStr, varissues[0].location.textRange)
                         for iss in varissues
-                            iss.location.textRange=textRange
+                            iss.location.textRange = textRange
+                            #in case there are several messages bound to the same region,
+                            #linter cannot display all of them in a pop-up bubble, so we
+                            #have to aggregate multiple messages into single one
+                            collapsed = @collapseIssues(varissues, markersLayer, obsolete, sourceDir)
+
+                            msg = {
+                                type: collapsed.state
+                                filePath: filePath
+                                range: collapsed.textRange
+                                html: collapsed.message
+                                # time: collapsed.time
+                            }
+
+                            for issue in varissues
+                                markersLayer.putMessage issue.key, msg
+
+                            messages.push(msg)
+                        
                 else
                     console.error('no text at line ' + line) 
 
 
-                #in case there are several messages bound to the same region,
-                #linter cannot display all of them in a pop-up bubble, so we
-                #have to aggregate multiple messages into single one
-                collapsed = @collapseIssues(issues, markersLayer, obsolete, sourceDir)
-
-                msg = {
-                    type: collapsed.state
-                    filePath: filePath
-                    range: collapsed.textRange
-                    html: collapsed.message
-                    # time: collapsed.time
-                }
-
-                for issue in issues
-                    markersLayer.putMessage issue.key, msg
-
-                messages.push(msg)
+                
 
         return messages
 
@@ -325,6 +327,7 @@ class KtAdvanceScanner
             textRange[0][1] = col
             textRange[1][1] = col + varname.length
         else
+            textRange[0][1] = 0
             textRange[1][1] = lineStr.length - 1
         return textRange
 
@@ -332,10 +335,10 @@ class KtAdvanceScanner
         return {
             start:
                 row: textRange[0][0]-1
-                column: 1+textRange[0][1]
+                column: textRange[0][1]
             end:
                 row: textRange[1][0]-1
-                column: 1+textRange[1][1]
+                column: textRange[1][1]
         } 
 
     ###
