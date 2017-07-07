@@ -110,12 +110,11 @@ class KtAdvanceScanner
         return path.extname(filePath) == '.c'
 
 
-    
+
 
     ## @Overrides
     lint: (textEditor) ->
         @_submitMessages @_lint(textEditor), textEditor
-
         # return nothing, because this is async indie linter
         # we submit messages via linter interface
         return []
@@ -130,8 +129,8 @@ class KtAdvanceScanner
         fileAbsolutePath = textEditor.getPath()
         sourceDir = commondir([ktDir, fileAbsolutePath])
 
-        onScanReady = (analysis)=>            
-            
+        onScanReady = (analysis)=>
+
             relativePath = path.relative(sourceDir, fileAbsolutePath)
 
             try
@@ -166,12 +165,12 @@ class KtAdvanceScanner
         if @scannningInProgress
             return
 
-        
+
         if not ktDir?
             @statsView.errorMessage.text(
                 'No "ch_analysis" dir found')
-        
-        else                    
+
+        else
 
             if @scannningPromisePending
                 return []
@@ -197,10 +196,10 @@ class KtAdvanceScanner
                 (analysis) =>
                     console.info('reading PO data complete. PPOs:' + analysis.ppos.length)
                     console.info('reading PO data complete. SPOs:' + analysis.spos.length)
- 
+
                     @proofObligations = analysis.ppos.concat(analysis.spos);
                     @proofObligations = _.filter(
-                        @proofObligations, 
+                        @proofObligations,
                         (x)->x.stateName!='discharged')
 
                     @assumptions = analysis.apis;
@@ -219,22 +218,8 @@ class KtAdvanceScanner
             )
 
     onAnalysisReady:(textEditor) ->
+        # do nothing by default
         return
-
-    # readAndParseProjectMetrics:(textEditor, jsonPath) ->
-    #     projectPath = @_projectPath(textEditor)
-
-    #     data = @readJson(jsonPath)
-
-    #     data.measures.file_title = ""
-    #     data.measures.scope = "poject"
-    #     @statsModel.setMeasures(projectPath, data.measures)
-    #     @statsModel.file_key = projectPath
-    #     @statsView.update()
-    #     # @statsModel.file_title=projectPath
-
-    
-
 
     filterIssues:(issuesByRegions) ->
         filtered={}
@@ -279,13 +264,13 @@ class KtAdvanceScanner
         #     }
         #     messages.push warning
 
-        obsolete = false        
+        obsolete = false
         for line, issues of fileIssuesByLine
 
             if issues?
 
                 issuesByVar = _.groupBy(issues, "predicateArgument")
-                lineStr  = textEditor.lineTextForBufferRow(line-1) 
+                lineStr = textEditor.lineTextForBufferRow(line-1)
 
                 if lineStr?
                     for varname, varissues of issuesByVar
@@ -309,18 +294,18 @@ class KtAdvanceScanner
                                 markersLayer.putMessage issue.key, msg
 
                             messages.push(msg)
-                        
+
                 else
-                    console.error('no text at line ' + line) 
+                    console.error('no text at line ' + line)
 
 
-                
+
 
         return messages
 
     _findAndFixVariableColumn:(varname, lineStr, textRange) ->
         col = -1
-        if varname? 
+        if varname?
             col = findVarLocation(varname, lineStr)
 
         if (col>0)
@@ -339,15 +324,25 @@ class KtAdvanceScanner
             end:
                 row: textRange[1][0]-1
                 column: textRange[1][1]
-        } 
+        }
 
     ###
     in case there are several messages bound to the same region,
     linter cannot display all of them in a pop-up bubble, so we
     have to aggregate multiple messages into single one ###
     collapseIssues:(issues, markersLayer, obsolete, sourceDir) ->
-        txt=''
-        state = if issues.length>1 then 'multiple' else issues[0].stateName
+        txt = ''
+        hasViolations = false
+        issues = _.sortBy(issues, 'stateName')
+        for issue in issues
+            if issue.stateName.toLowerCase()=='violation'
+                hasViolations=true
+
+        if hasViolations
+            state = 'violation'
+        else
+            state = if issues.length>1 then 'multiple' else issues[0].stateName
+
         i=0
         for issue in issues
             markedLinks = @issueToString(
@@ -412,13 +407,14 @@ class KtAdvanceScanner
         str = str + item.expression + ' '
         if item.discharge? and item.discharge.message?
             str = str + Htmler.wrapTag(item.discharge.message, 'small')
-        
+
         return str
+
 
 
     _assumptionsToString: (issue, markersLayer, sourceDir)->
         message = ''
-        if issue.inputs? 
+        if issue.inputs?
             if issue.inputs.length==1
                 apiAssumption = issue.inputs[0]
                 dependentPOs = apiAssumption.outputs
@@ -428,7 +424,7 @@ class KtAdvanceScanner
                     message +=('dependent POs: ' + dependentPOs.length + ' ')
 
                     links = ''
-                    message +=  Htmler.bage(issue.stateName.toLowerCase(), apiAssumption.type) + ' '
+                    message += Htmler.bage(issue.stateName.toLowerCase(), apiAssumption.type) + ' '
                     list = ''
                     for dpo in dependentPOs
                         list += '<li>'
@@ -439,7 +435,7 @@ class KtAdvanceScanner
                     links += Htmler.wrapTag list, 'ul', Htmler.wrapAttr('class', 'links-'+issue.key)
 
                     message += Htmler.wrapTag links, 'div', Htmler.wrapAttr('class', 'po-links')
-                
+
 
             else
                 if issue.inputs.length>1
@@ -447,26 +443,12 @@ class KtAdvanceScanner
 
         return message
 
-        # references = issue.inputs
-        # message = ''
-        # if references? and references.length > 0
-        #     message +='<hr class="issue-split">'
-        #     message +=('assumptions: ' + references.length)
 
-        #     list=''
-        #     for assumption in references
-        #         list += '<br>'
-        #         markedLink = @_linkAssumption(assumption, markersLayer, issue.key)
-        #         list += markedLink[1]
-
-        #     message += Htmler.wrapTag list, 'small', Htmler.wrapAttr('class', 'links-'+issue.key)
-
-        # return message
 
 
     _linkAssumption: (dependentPO, markersLayer, bundleId, sourceDir)->
-        
-        file = path.join sourceDir, dependentPO.file 
+
+        file = path.join sourceDir, dependentPO.file
 
         dependentPORange = @_correctLineNumbers(dependentPO.location.textRange)
 
@@ -491,7 +473,7 @@ class KtAdvanceScanner
         # attrs += Htmler.wrapAttr('href', '#')
         attrs += Htmler.wrapAttr('id', 'kt-assumption-link-src')
         attrs += Htmler.wrapAttr('data-marker-id', dependentPO.key)
-        
+
         attrs += Htmler.wrapAttr('line', dependentPORange.start.row)
         attrs += Htmler.wrapAttr('col', dependentPORange.start.column)
 
@@ -501,6 +483,8 @@ class KtAdvanceScanner
 
         return [marker.id, list]
 
+
+
     parseMetrics: (textEditor, data) ->
         data.measures.line_count = textEditor.getLineCount()
         data.measures.file_title = textEditor.getTitle()
@@ -509,6 +493,8 @@ class KtAdvanceScanner
         @statsModel.setMeasures(textEditor.getPath(), data.measures)
         @statsModel.file_key = textEditor.getPath()
         @statsView.update()
+
+
 
     _makeErrorMessage: (error, filePath) ->
         result = []
