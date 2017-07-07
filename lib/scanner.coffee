@@ -4,7 +4,7 @@
 {XmlReader} = require 'xml-kt-advance/lib/xml/xml_reader'
 {FunctionsMap} = require 'xml-kt-advance/lib/xml/xml_types'
 { MapOfLists } = require 'xml-kt-advance/lib/common/collections'
-{ ProgressTracker, ProgressTrackerDummie } = require 'xml-kt-advance/lib/common/util';
+{ ProgressTracker, ProgressTrackerDummie, findVarLocation} = require 'xml-kt-advance/lib/common/util';
 
 
 _ = require 'lodash'
@@ -56,11 +56,10 @@ class KtAdvanceScanner
         )
 
 
+
     findKtAlaysisDirLocation:(textEditor) ->
         filePath = textEditor.getPath()
         return getChDir(filePath)
-
-
 
 
     ###
@@ -111,18 +110,7 @@ class KtAdvanceScanner
         return path.extname(filePath) == '.c'
 
 
-    _makeErrorMessage: (error, filePath) ->
-        result = []
-        msg = "process crashed, see dev. console for error details. "
-        if error?
-            msg+=error.message
-        result.push({
-            lineNumber: 1
-            filePath: filePath
-            type: 'error'
-            text: msg
-        })
-        return result
+    
 
     ## @Overrides
     lint: (textEditor) ->
@@ -147,7 +135,8 @@ class KtAdvanceScanner
             relativePath = path.relative(sourceDir, fileAbsolutePath)
 
             try
-                messages = @collectMesages(markersLayer, [sourceDir, relativePath])
+                messages = @collectMesages(textEditor, markersLayer, [sourceDir, relativePath])
+
             catch err
                 console.error err
                 console.error err.stack
@@ -244,14 +233,7 @@ class KtAdvanceScanner
     #     @statsView.update()
     #     # @statsModel.file_title=projectPath
 
-    parseMetrics: (textEditor, data) ->
-        data.measures.line_count = textEditor.getLineCount()
-        data.measures.file_title = textEditor.getTitle()
-        data.measures.projectPath=@_projectPath(textEditor)
-        data.measures.scope = "file"
-        @statsModel.setMeasures(textEditor.getPath(), data.measures)
-        @statsModel.file_key = textEditor.getPath()
-        @statsView.update()
+    
 
 
     filterIssues:(issuesByRegions) ->
@@ -269,7 +251,7 @@ class KtAdvanceScanner
         return filtered
 
 
-    collectMesages:(markersLayer, paths) ->
+    collectMesages:(textEditor, markersLayer, paths) ->
 
         sourceDir = paths[0]
         relativePath = paths[1]
@@ -298,8 +280,21 @@ class KtAdvanceScanner
         #     messages.push warning
 
         obsolete = false        
-        for key, issues of fileIssuesByLine
+        for line, issues of fileIssuesByLine
+
             if issues?
+
+                issuesByVar = _.groupBy(issues, "predicateArgument")
+                lineStr  = textEditor.lineTextForScreenRow(line) 
+
+                if lineStr?
+                    for varname, varissues of issuesByVar
+                        textRange = @_findAndFixVariableColumn(varname, lineStr, varissues[0].location.textRange)
+                        for iss in varissues
+                            iss.location.textRange=textRange
+                else
+                    console.error('no text at line ' + line) 
+
 
                 #in case there are several messages bound to the same region,
                 #linter cannot display all of them in a pop-up bubble, so we
@@ -321,6 +316,17 @@ class KtAdvanceScanner
 
         return messages
 
+    _findAndFixVariableColumn:(varname, lineStr, textRange) ->
+        col = -1
+        if varname? 
+            col = findVarLocation(varname, lineStr)
+
+        if (col>0)
+            textRange[0][1] = col
+            textRange[1][1] = col + varname.length
+        else
+            textRange[1][1] = lineStr.length - 1
+        return textRange
 
     _correctLineNumbers:(textRange) ->
         return {
@@ -492,5 +498,26 @@ class KtAdvanceScanner
 
         return [marker.id, list]
 
+    parseMetrics: (textEditor, data) ->
+        data.measures.line_count = textEditor.getLineCount()
+        data.measures.file_title = textEditor.getTitle()
+        data.measures.projectPath=@_projectPath(textEditor)
+        data.measures.scope = "file"
+        @statsModel.setMeasures(textEditor.getPath(), data.measures)
+        @statsModel.file_key = textEditor.getPath()
+        @statsView.update()
+
+    _makeErrorMessage: (error, filePath) ->
+        result = []
+        msg = "process crashed, see dev. console for error details. "
+        if error?
+            msg+=error.message
+        result.push({
+            lineNumber: 1
+            filePath: filePath
+            type: 'error'
+            text: msg
+        })
+        return result
 
 module.exports = KtAdvanceScanner
